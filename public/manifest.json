@@ -4,8 +4,8 @@
   "description": "Track, understand and change your patterns.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F4F2ED",
-  "theme_color": "#6B9E8A",
+  "background_color": "#F6F1E7",
+  "theme_color": "#35755D",
   "orientation": "portrait",
   "icons": [
     {

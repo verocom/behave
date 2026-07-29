@@ -7,7 +7,7 @@ import {
 } from 'firebase/auth';
 import {
   collection, addDoc, deleteDoc, doc, onSnapshot,
-  query, orderBy, serverTimestamp, setDoc,
+  query, orderBy, serverTimestamp, setDoc, updateDoc,
 } from 'firebase/firestore';
 import { UI_LANGS, LOCALE, DEFAULT_VOICE, STRINGS, detectUILang } from './i18n';
 
@@ -82,6 +82,7 @@ const ChartIcon = () => <Ico><line x1="18" y1="20" x2="18" y2="10" stroke="curre
 const GearIcon  = () => <Ico d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" d2="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>;
 const PlusIcon  = () => <Ico><line x1="12" y1="5" x2="12" y2="19" stroke="currentColor"/><line x1="5" y1="12" x2="19" y2="12" stroke="currentColor"/></Ico>;
 const TrashIcon = () => <Ico size={17}><polyline points="3 6 5 6 21 6" stroke="currentColor"/><path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" stroke="currentColor"/></Ico>;
+const PencilIcon = () => <Ico size={16} d="M12 20h9" d2="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>;
 const SunIcon   = () => <Ico cx={12} cy={12} r="5"><line x1="12" y1="1" x2="12" y2="3" stroke="currentColor"/><line x1="12" y1="21" x2="12" y2="23" stroke="currentColor"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor"/><line x1="1" y1="12" x2="3" y2="12" stroke="currentColor"/><line x1="21" y1="12" x2="23" y2="12" stroke="currentColor"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor"/></Ico>;
 const MoonIcon  = () => <Ico d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>;
 const LogoutIcon= () => <Ico d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" d2="M16 17l5-5-5-5"><line x1="21" y1="12" x2="9" y2="12" stroke="currentColor"/></Ico>;
@@ -480,6 +481,8 @@ export default function App() {
   const [showNewB,  setShowNewB]  = useState(false);
   const [entryForm, setEntryForm] = useState({ behaviorId: '', tags: [], replacement: '', note: '' });
   const [newBForm,  setNewBForm]  = useState({ label: '', cost: '' });
+  const [editingEntryId,    setEditingEntryId]    = useState(null);
+  const [editingBehaviorId, setEditingBehaviorId]  = useState(null);
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
   const recRef = useRef(null);
@@ -511,10 +514,18 @@ export default function App() {
   const tagLabel = (id) => t.tags[id] || id;
 
   // ── Behaviors ─────────────────────────────────────────────────────────────
-  async function addBehavior() {
+  function openNewBehavior() { setEditingBehaviorId(null); setNewBForm({ label: '', cost: '' }); setShowNewB(true); }
+  function openEditBehavior(b) { setEditingBehaviorId(b.id); setNewBForm({ label: b.label, cost: b.cost ? String(b.cost) : '' }); setShowNewB(true); }
+  function closeNewBehavior() { setShowNewB(false); setEditingBehaviorId(null); setNewBForm({ label: '', cost: '' }); }
+  async function saveBehavior() {
     if (!newBForm.label.trim() || !user) return;
-    await addDoc(collection(db, 'users', user.uid, 'behaviors'), { label: newBForm.label.trim(), cost: parseFloat(newBForm.cost) || 0, createdAt: serverTimestamp() });
-    setNewBForm({ label: '', cost: '' }); setShowNewB(false);
+    const data = { label: newBForm.label.trim(), cost: parseFloat(newBForm.cost) || 0 };
+    if (editingBehaviorId) {
+      await updateDoc(doc(db, 'users', user.uid, 'behaviors', editingBehaviorId), data);
+    } else {
+      await addDoc(collection(db, 'users', user.uid, 'behaviors'), { ...data, createdAt: serverTimestamp() });
+    }
+    closeNewBehavior();
   }
   async function delBehavior(id) {
     if (!user) return;
@@ -539,22 +550,31 @@ export default function App() {
   const stopRec = useCallback(() => { recRef.current?.stop(); setRecording(false); }, []);
 
   // ── Save entry ────────────────────────────────────────────────────────────
+  function openEditEntry(entry) {
+    setEditingEntryId(entry.id);
+    setTranscript(entry.transcript || '');
+    setEntryForm({ behaviorId: entry.behaviorId || '', tags: entry.tags || [], replacement: entry.replacement || '', note: entry.note || '' });
+    setRecErr(''); setShowEntry(true);
+  }
   async function saveEntry() {
     if (!entryForm.behaviorId || !transcript.trim() || !user) return;
-    await addDoc(collection(db, 'users', user.uid, 'entries'), {
-      behaviorId: entryForm.behaviorId, timestamp: Date.now(),
-      transcript: transcript.trim(), tags: entryForm.tags,
-      replacement: entryForm.replacement, note: entryForm.note,
-      createdAt: serverTimestamp(),
-    });
-    setShowEntry(false); setTranscript(''); setEntryForm({ behaviorId: '', tags: [], replacement: '', note: '' });
+    const data = {
+      behaviorId: entryForm.behaviorId, transcript: transcript.trim(),
+      tags: entryForm.tags, replacement: entryForm.replacement, note: entryForm.note,
+    };
+    if (editingEntryId) {
+      await updateDoc(doc(db, 'users', user.uid, 'entries', editingEntryId), data);
+    } else {
+      await addDoc(collection(db, 'users', user.uid, 'entries'), { ...data, timestamp: Date.now(), createdAt: serverTimestamp() });
+    }
+    closeEntry();
   }
   async function delEntry(id) {
     if (!user) return;
     await deleteDoc(doc(db, 'users', user.uid, 'entries', id));
   }
   const toggleTag = id => setEntryForm(p => ({ ...p, tags: p.tags.includes(id) ? p.tags.filter(t => t !== id) : [...p.tags, id] }));
-  const closeEntry = () => { setShowEntry(false); stopRec(); setTranscript(''); setEntryForm({ behaviorId: '', tags: [], replacement: '', note: '' }); };
+  const closeEntry = () => { setShowEntry(false); stopRec(); setTranscript(''); setEntryForm({ behaviorId: '', tags: [], replacement: '', note: '' }); setEditingEntryId(null); };
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = (() => {
@@ -610,7 +630,10 @@ export default function App() {
                   </div>
                   <div className="entry-footer">
                     <span className="entry-date">{formatDate(entry.timestamp, locale)}</span>
-                    <button className="entry-delete" onClick={() => delEntry(entry.id)}><TrashIcon/></button>
+                    <div style={{ display: 'flex' }}>
+                      <button className="entry-delete" onClick={() => openEditEntry(entry)}><PencilIcon/></button>
+                      <button className="entry-delete" onClick={() => delEntry(entry.id)}><TrashIcon/></button>
+                    </div>
                   </div>
                 </div>
               );
@@ -672,10 +695,13 @@ export default function App() {
         {behaviors.map(b => (
           <div key={b.id} className="behavior-item">
             <div><div className="behavior-name">{b.label}</div><div className="behavior-cost">{b.cost > 0 ? `${formatMoney(b.cost, locale)} ${t.perOccurrence}` : t.noCost}</div></div>
-            <button className="entry-delete" onClick={() => delBehavior(b.id)}><TrashIcon/></button>
+            <div style={{ display: 'flex' }}>
+              <button className="entry-delete" onClick={() => openEditBehavior(b)}><PencilIcon/></button>
+              <button className="entry-delete" onClick={() => delBehavior(b.id)}><TrashIcon/></button>
+            </div>
           </div>
         ))}
-        <button className="btn btn-ghost btn-sm btn-full" style={{ marginTop: 6 }} onClick={() => setShowNewB(true)}><PlusIcon/> {t.addBehavior}</button>
+        <button className="btn btn-ghost btn-sm btn-full" style={{ marginTop: 6 }} onClick={openNewBehavior}><PlusIcon/> {t.addBehavior}</button>
       </div>
       <div className="card">
         <div className="card-title">{t.uiLanguage}</div>
@@ -754,7 +780,7 @@ export default function App() {
           <div className="overlay">
             <div className="modal">
               <div className="modal-handle"/>
-              <div className="modal-title">{t.newEntry}</div>
+              <div className="modal-title">{editingEntryId ? t.editEntryTitle : t.newEntry}</div>
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>{t.voiceLangLabel}</div>
                 <div className="lang-bar">{LANGS.map(l => <div key={l.code} className={`lang-chip ${recLang === l.code ? 'on' : ''}`} onClick={() => { setRecLang(l.code); if (recording) stopRec(); }}>{l.flag} {l.code.split('-')[0].toUpperCase()}</div>)}</div>
@@ -791,23 +817,23 @@ export default function App() {
               </div>
               <div className="modal-actions">
                 <button className="btn btn-ghost" style={{ flex: 1 }} onClick={closeEntry}>{t.cancel}</button>
-                <button className="btn btn-primary" style={{ flex: 2 }} onClick={saveEntry} disabled={!entryForm.behaviorId || !transcript.trim()}>{t.saveEntry}</button>
+                <button className="btn btn-primary" style={{ flex: 2 }} onClick={saveEntry} disabled={!entryForm.behaviorId || !transcript.trim()}>{editingEntryId ? t.updateEntry : t.saveEntry}</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* New behavior modal */}
+        {/* New/edit behavior modal */}
         {showNewB && (
-          <div className="overlay" onClick={() => setShowNewB(false)}>
+          <div className="overlay" onClick={closeNewBehavior}>
             <div className="modal" onClick={e => e.stopPropagation()}>
               <div className="modal-handle"/>
-              <div className="modal-title">{t.newBehavior}</div>
+              <div className="modal-title">{editingBehaviorId ? t.editBehavior : t.newBehavior}</div>
               <div className="field"><label>{t.bNameLabel} *</label><input type="text" placeholder={t.bNamePh} value={newBForm.label} onChange={e => setNewBForm(p => ({ ...p, label: e.target.value }))}/></div>
               <div className="field"><label>{t.bCostLabel}</label><input type="number" min="0" step="0.01" placeholder={t.bCostPh} value={newBForm.cost} onChange={e => setNewBForm(p => ({ ...p, cost: e.target.value }))}/></div>
               <div className="modal-actions">
-                <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowNewB(false)}>{t.cancel}</button>
-                <button className="btn btn-primary" style={{ flex: 2 }} onClick={addBehavior} disabled={!newBForm.label.trim()}>{t.addBehaviorBtn}</button>
+                <button className="btn btn-ghost" style={{ flex: 1 }} onClick={closeNewBehavior}>{t.cancel}</button>
+                <button className="btn btn-primary" style={{ flex: 2 }} onClick={saveBehavior} disabled={!newBForm.label.trim()}>{editingBehaviorId ? t.updateBehaviorBtn : t.addBehaviorBtn}</button>
               </div>
             </div>
           </div>

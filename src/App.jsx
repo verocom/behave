@@ -7,12 +7,14 @@ import {
 } from 'firebase/auth';
 import {
   collection, addDoc, deleteDoc, doc, onSnapshot,
-  query, orderBy, serverTimestamp, setDoc, updateDoc,
+  query, orderBy, serverTimestamp, setDoc, updateDoc, getDoc,
 } from 'firebase/firestore';
 import { UI_LANGS, LOCALE, DEFAULT_VOICE, STRINGS, detectUILang } from './i18n';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const ALL_TAGS = [
+// Seeded into a new user's own `tags` collection on first load, using these exact
+// ids so pre-existing entries (which reference tags by id) keep resolving.
+const DEFAULT_TAGS = [
   { id: 'anxiety',       emoji: '😰', color: '#E8956A' },
   { id: 'boredom',       emoji: '😑', color: '#C4A055' },
   { id: 'stress',        emoji: '😤', color: '#D4785A' },
@@ -30,7 +32,6 @@ const ALL_TAGS = [
   { id: 'replaced',      emoji: '✅', color: '#4A9E68' },
   { id: 'strongcraving', emoji: '🔥', color: '#C45040' },
 ];
-const TAG_MAP = Object.fromEntries(ALL_TAGS.map(t => [t.id, t]));
 
 const LANGS = [
   { code: 'en-US', flag: '🇺🇸', label: 'English (US)' },
@@ -256,6 +257,9 @@ const CSS = `
   .tag { display: inline-flex; align-items: center; gap: 4px; padding: 8px 13px; min-height: 36px; border-radius: 100px; font-size: 0.76rem; font-weight: 700; border: 1.5px solid transparent; cursor: pointer; transition: all 0.15s; user-select: none; -webkit-tap-highlight-color: transparent; }
   .tag:active { transform: scale(0.94); }
   .tag.off { opacity: 0.38; } .tag.readonly { cursor: default; opacity: 1; }
+  .tag-inline-btn { background: none; border: none; color: inherit; opacity: 0.6; cursor: pointer; display: inline-flex; padding: 2px; margin-left: 1px; border-radius: 4px; transition: opacity 0.15s; }
+  .tag-inline-btn:hover { opacity: 1; }
+  .tag-inline-btn svg { width: 13px; height: 13px; }
 
   /* Journal */
   .entry { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; box-shadow: var(--shadow-sm); transition: box-shadow 0.2s, transform 0.2s; animation: fadeUp 0.4s cubic-bezier(.2,.8,.2,1) both; }
@@ -472,6 +476,8 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [behaviors, setBehaviors] = useState([]);
   const [entries,   setEntries]   = useState([]);
+  const [tags,      setTags]      = useState([]);
+  const [tagsLoaded,setTagsLoaded]= useState(false);
   const [recLang,   setRecLang]   = useState(() => localStorage.getItem('behave_voicelang') || DEFAULT_VOICE[localStorage.getItem('behave_uilang') || detectUILang()]);
   const [view,      setView]      = useState('journal');
   const [recording, setRecording] = useState(false);
@@ -483,6 +489,9 @@ export default function App() {
   const [newBForm,  setNewBForm]  = useState({ label: '', cost: '' });
   const [editingEntryId,    setEditingEntryId]    = useState(null);
   const [editingBehaviorId, setEditingBehaviorId]  = useState(null);
+  const [showNewTag,   setShowNewTag]   = useState(false);
+  const [newTagForm,   setNewTagForm]   = useState({ label: '', emoji: '🏷️', color: '#6B9E8A' });
+  const [editingTagId, setEditingTagId] = useState(null);
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
   const recRef = useRef(null);
@@ -495,13 +504,31 @@ export default function App() {
 
   // ── Firestore listeners ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!user) { setBehaviors([]); setEntries([]); return; }
+    if (!user) { setBehaviors([]); setEntries([]); setTags([]); setTagsLoaded(false); return; }
     const bRef = collection(db, 'users', user.uid, 'behaviors');
     const eRef = query(collection(db, 'users', user.uid, 'entries'), orderBy('timestamp', 'desc'));
+    const tRef = collection(db, 'users', user.uid, 'tags');
     const unsubB = onSnapshot(bRef, snap => setBehaviors(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubE = onSnapshot(eRef, snap => setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => { unsubB(); unsubE(); };
+    const unsubT = onSnapshot(tRef, snap => { setTags(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setTagsLoaded(true); });
+    return () => { unsubB(); unsubE(); unsubT(); };
   }, [user?.uid]);
+
+  // ── Seed default tags once, for accounts that don't have any yet ────────
+  useEffect(() => {
+    if (!user || !tagsLoaded || tags.length > 0) return;
+    (async () => {
+      const uRef = doc(db, 'users', user.uid);
+      const uSnap = await getDoc(uRef);
+      if (uSnap.exists() && uSnap.data().tagsSeeded) return;
+      for (const tg of DEFAULT_TAGS) {
+        await setDoc(doc(db, 'users', user.uid, 'tags', tg.id), {
+          label: STRINGS[uiLang].tags[tg.id] || tg.id, emoji: tg.emoji, color: tg.color, createdAt: serverTimestamp(),
+        });
+      }
+      await setDoc(uRef, { tagsSeeded: true }, { merge: true });
+    })();
+  }, [user, tagsLoaded, tags.length]);
 
   // ── Dark mode ────────────────────────────────────────────────────────────
   useEffect(() => { document.body.style.background = dark ? '#0F1512' : '#F6F1E7'; }, [dark]);
@@ -511,7 +538,7 @@ export default function App() {
   const locale = LOCALE[uiLang];
   useEffect(() => { localStorage.setItem('behave_uilang', uiLang); document.documentElement.lang = uiLang; }, [uiLang]);
   useEffect(() => { localStorage.setItem('behave_voicelang', recLang); }, [recLang]);
-  const tagLabel = (id) => t.tags[id] || id;
+  const TAG_MAP = Object.fromEntries(tags.map(tg => [tg.id, tg]));
 
   // ── Behaviors ─────────────────────────────────────────────────────────────
   function openNewBehavior() { setEditingBehaviorId(null); setNewBForm({ label: '', cost: '' }); setShowNewB(true); }
@@ -530,6 +557,25 @@ export default function App() {
   async function delBehavior(id) {
     if (!user) return;
     await deleteDoc(doc(db, 'users', user.uid, 'behaviors', id));
+  }
+
+  // ── Tags ──────────────────────────────────────────────────────────────────
+  function openNewTag() { setEditingTagId(null); setNewTagForm({ label: '', emoji: '🏷️', color: '#6B9E8A' }); setShowNewTag(true); }
+  function openEditTag(tg) { setEditingTagId(tg.id); setNewTagForm({ label: tg.label, emoji: tg.emoji, color: tg.color }); setShowNewTag(true); }
+  function closeNewTag() { setShowNewTag(false); setEditingTagId(null); setNewTagForm({ label: '', emoji: '🏷️', color: '#6B9E8A' }); }
+  async function saveTag() {
+    if (!newTagForm.label.trim() || !user) return;
+    const data = { label: newTagForm.label.trim(), emoji: newTagForm.emoji.trim() || '🏷️', color: newTagForm.color };
+    if (editingTagId) {
+      await updateDoc(doc(db, 'users', user.uid, 'tags', editingTagId), data);
+    } else {
+      await addDoc(collection(db, 'users', user.uid, 'tags'), { ...data, createdAt: serverTimestamp() });
+    }
+    closeNewTag();
+  }
+  async function delTag(id) {
+    if (!user) return;
+    await deleteDoc(doc(db, 'users', user.uid, 'tags', id));
   }
 
   // ── Recording ─────────────────────────────────────────────────────────────
@@ -611,7 +657,7 @@ export default function App() {
         </div>
         <div className="filter-bar">
           <div className={`chip ${fTag === 'all' ? 'on' : ''}`} onClick={() => setFTag('all')}>{t.allTags}</div>
-          {ALL_TAGS.map(tg => <div key={tg.id} className={`chip ${fTag === tg.id ? 'on' : ''}`} onClick={() => setFTag(tg.id)}>{tg.emoji} {tagLabel(tg.id)}</div>)}
+          {tags.map(tg => <div key={tg.id} className={`chip ${fTag === tg.id ? 'on' : ''}`} onClick={() => setFTag(tg.id)}>{tg.emoji} {tg.label}</div>)}
         </div>
         {days.length === 0 ? (
           <div className="empty"><div className="empty-icon">🎙️</div><p>{t.noEntries}<br/>{t.tapToRecord}</p></div>
@@ -626,7 +672,7 @@ export default function App() {
                   <div className="entry-transcript">"{entry.transcript}"</div>
                   {entry.replacement && <div className="entry-replacement">✦ {entry.replacement}</div>}
                   <div className="tags" style={{ marginBottom: 10 }}>
-                    {entry.tags?.map(tid => { const tg = TAG_MAP[tid]; return tg ? <span key={tid} className="tag readonly" style={{ background: tg.color + '20', borderColor: tg.color + '55', color: tg.color }}>{tg.emoji} {tagLabel(tid)}</span> : null; })}
+                    {entry.tags?.map(tid => { const tg = TAG_MAP[tid]; return tg ? <span key={tid} className="tag readonly" style={{ background: tg.color + '20', borderColor: tg.color + '55', color: tg.color }}>{tg.emoji} {tg.label}</span> : null; })}
                   </div>
                   <div className="entry-footer">
                     <span className="entry-date">{formatDate(entry.timestamp, locale)}</span>
@@ -679,7 +725,7 @@ export default function App() {
         {s.topTags.length > 0 && (
           <div className="card">
             <div className="card-title">{t.topTriggers}</div>
-            {s.topTags.map(([tid, cnt]) => { const tg = TAG_MAP[tid]; if (!tg) return null; return <div key={tid} className="bar-row"><div className="bar-label">{tg.emoji} {tagLabel(tid)}</div><div className="bar-track"><div className="bar-fill" style={{ width: `${(cnt / s.topTags[0][1]) * 100}%`, background: tg.color }}/></div><div className="bar-count">{cnt}</div></div>; })}
+            {s.topTags.map(([tid, cnt]) => { const tg = TAG_MAP[tid]; if (!tg) return null; return <div key={tid} className="bar-row"><div className="bar-label">{tg.emoji} {tg.label}</div><div className="bar-track"><div className="bar-fill" style={{ width: `${(cnt / s.topTags[0][1]) * 100}%`, background: tg.color }}/></div><div className="bar-count">{cnt}</div></div>; })}
           </div>
         )}
         {s.total === 0 && <div className="empty"><div className="empty-icon">📊</div><p>{t.statsEmpty}</p></div>}
@@ -702,6 +748,20 @@ export default function App() {
           </div>
         ))}
         <button className="btn btn-ghost btn-sm btn-full" style={{ marginTop: 6 }} onClick={openNewBehavior}><PlusIcon/> {t.addBehavior}</button>
+      </div>
+      <div className="card">
+        <div className="card-title">{t.myTags}</div>
+        {tags.length === 0 && <p style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 14 }}>{t.noTags}</p>}
+        <div className="tags" style={{ marginBottom: tags.length ? 12 : 0 }}>
+          {tags.map(tg => (
+            <span key={tg.id} className="tag readonly" style={{ background: tg.color + '20', borderColor: tg.color + '55', color: tg.color }}>
+              {tg.emoji} {tg.label}
+              <button className="tag-inline-btn" onClick={() => openEditTag(tg)}><PencilIcon/></button>
+              <button className="tag-inline-btn" onClick={() => delTag(tg.id)}><TrashIcon/></button>
+            </span>
+          ))}
+        </div>
+        <button className="btn btn-ghost btn-sm btn-full" onClick={openNewTag}><PlusIcon/> {t.addTag}</button>
       </div>
       <div className="card">
         <div className="card-title">{t.uiLanguage}</div>
@@ -804,7 +864,8 @@ export default function App() {
               <div className="field">
                 <label>{t.contextTriggers}</label>
                 <div className="tags" style={{ marginTop: 4 }}>
-                  {ALL_TAGS.map(tg => <span key={tg.id} className={`tag ${entryForm.tags.includes(tg.id) ? '' : 'off'}`} style={{ background: tg.color + '22', borderColor: tg.color + (entryForm.tags.includes(tg.id) ? '99' : '44'), color: tg.color }} onClick={() => toggleTag(tg.id)}>{tg.emoji} {tagLabel(tg.id)}</span>)}
+                  {tags.map(tg => <span key={tg.id} className={`tag ${entryForm.tags.includes(tg.id) ? '' : 'off'}`} style={{ background: tg.color + '22', borderColor: tg.color + (entryForm.tags.includes(tg.id) ? '99' : '44'), color: tg.color }} onClick={() => toggleTag(tg.id)}>{tg.emoji} {tg.label}</span>)}
+                  {tags.length === 0 && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 6, fontWeight: 600 }}>{t.addFirstTag}</div>}
                 </div>
               </div>
               <div className="field">
@@ -834,6 +895,25 @@ export default function App() {
               <div className="modal-actions">
                 <button className="btn btn-ghost" style={{ flex: 1 }} onClick={closeNewBehavior}>{t.cancel}</button>
                 <button className="btn btn-primary" style={{ flex: 2 }} onClick={saveBehavior} disabled={!newBForm.label.trim()}>{editingBehaviorId ? t.updateBehaviorBtn : t.addBehaviorBtn}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* New/edit tag modal */}
+        {showNewTag && (
+          <div className="overlay" onClick={closeNewTag}>
+            <div className="modal" onClick={e => e.stopPropagation()}>
+              <div className="modal-handle"/>
+              <div className="modal-title">{editingTagId ? t.editTag : t.newTag}</div>
+              <div className="field"><label>{t.tagNameLabel} *</label><input type="text" placeholder={t.tagNamePh} value={newTagForm.label} onChange={e => setNewTagForm(p => ({ ...p, label: e.target.value }))}/></div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div className="field" style={{ flex: 1 }}><label>{t.tagEmojiLabel}</label><input type="text" maxLength={4} value={newTagForm.emoji} onChange={e => setNewTagForm(p => ({ ...p, emoji: e.target.value }))}/></div>
+                <div className="field" style={{ flex: 1 }}><label>{t.tagColorLabel}</label><input type="color" value={newTagForm.color} onChange={e => setNewTagForm(p => ({ ...p, color: e.target.value }))} style={{ padding: 4, height: 48 }}/></div>
+              </div>
+              <div className="modal-actions">
+                <button className="btn btn-ghost" style={{ flex: 1 }} onClick={closeNewTag}>{t.cancel}</button>
+                <button className="btn btn-primary" style={{ flex: 2 }} onClick={saveTag} disabled={!newTagForm.label.trim()}>{editingTagId ? t.updateTagBtn : t.addTagBtn}</button>
               </div>
             </div>
           </div>

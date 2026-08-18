@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { auth, db } from './firebase';
 import {
   onAuthStateChanged, signInWithEmailAndPassword,
@@ -125,6 +125,59 @@ function WaveSparkline({ entries, days = 14 }) {
       <path d={curve} fill="none" style={{ stroke: 'var(--accent)' }} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
       {pts.map((p, i) => buckets[i] > 0 && <circle key={i} cx={p[0]} cy={p[1]} r="4" style={{ fill: 'var(--accent)' }} opacity="0.9"/>)}
     </svg>
+  );
+}
+
+// ── Mood Timeline (emotion heatmap over 14 days) ──────────────────────────────
+const EMOTION_TAGS = ['anxiety', 'stress', 'sadness', 'anger', 'loneliness', 'boredom', 'strongcraving'];
+
+function MoodTimeline({ entries, tagMap, days = 14 }) {
+  const now = Date.now();
+  const dayStarts = Array.from({ length: days }, (_, i) => {
+    const d = new Date(now - (days - 1 - i) * 86400000);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  });
+  // counts[tagId][dayIndex]
+  const counts = {};
+  EMOTION_TAGS.forEach(t => { counts[t] = new Array(days).fill(0); });
+  let maxCount = 1;
+  entries.forEach(e => {
+    const di = dayStarts.findIndex((s, i) => e.timestamp >= s && (i === days - 1 || e.timestamp < dayStarts[i + 1]));
+    if (di === -1) return;
+    e.tags?.forEach(t => {
+      if (counts[t] !== undefined) {
+        counts[t][di]++;
+        if (counts[t][di] > maxCount) maxCount = counts[t][di];
+      }
+    });
+  });
+  const activeRows = EMOTION_TAGS.filter(t => tagMap[t] && counts[t].some(c => c > 0));
+  if (activeRows.length === 0) return null;
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '76px 1fr', rowGap: 7, alignItems: 'center' }}>
+      {activeRows.map(tid => {
+        const tg = tagMap[tid];
+        return (
+          <Fragment key={tid}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 6 }}>
+              {tg.emoji} {tg.label}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${days}, 1fr)`, gap: 3 }}>
+              {counts[tid].map((c, i) => (
+                <div key={i} title={c > 0 ? `${c}×` : ''} style={{
+                  aspectRatio: '1', borderRadius: 4,
+                  background: c > 0 ? tg.color : 'var(--surface2)',
+                  opacity: c > 0 ? 0.35 + 0.65 * (c / maxCount) : 1,
+                  border: c > 0 ? 'none' : '1px solid var(--border)',
+                }}/>
+              ))}
+            </div>
+          </Fragment>
+        );
+      })}
+    </div>
   );
 }
 
@@ -703,6 +756,16 @@ export default function App() {
             <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-dim)' }}>{t.today}</span>
           </div>
         </div>
+        {entries.some(e => e.tags?.some(tg => EMOTION_TAGS.includes(tg)) && e.timestamp > Date.now() - 14 * 86400000) && (
+          <div className="card">
+            <div className="card-title">{t.moodTimeline}</div>
+            <MoodTimeline entries={entries} tagMap={TAG_MAP}/>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
+              <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-dim)' }}>{t.d14ago}</span>
+              <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-dim)' }}>{t.today}</span>
+            </div>
+          </div>
+        )}
         <div className="stat-grid">
           <div className="stat"><div className="stat-val">{s.total}</div><div className="stat-label">{t.totalEntries}</div></div>
           <div className="stat"><div className={`stat-val ${s.trend < 0 ? 'success' : s.trend > 0 ? 'danger' : ''}`}>{s.last7}{s.trend < 0 ? ' ↓' : s.trend > 0 ? ' ↑' : ''}</div><div className="stat-label">{t.thisWeek}</div></div>

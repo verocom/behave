@@ -39,6 +39,7 @@ export const STRINGS = {
     noEntries: 'No entries yet.', tapToRecord: 'Tap the green button to record your first note.',
     // Stats
     activity14: 'Activity · 14 Days', d14ago: '–14d', today: 'Today',
+    moodTimeline: 'Mood · 14 Days',
     totalEntries: 'Total entries', thisWeek: 'This week',
     replaced: 'Replaced', estCost: 'Est. cost',
     savedBy: (n) => `saved by replacing ${n} behavior${n !== 1 ? 's' : ''}`,
@@ -123,6 +124,7 @@ export const STRINGS = {
     all: 'Tous', allTags: 'Tous les tags',
     noEntries: 'Aucune entrée pour l\u2019instant.', tapToRecord: 'Appuie sur le bouton vert pour enregistrer ta première note.',
     activity14: 'Activité · 14 jours', d14ago: '–14 j', today: 'Aujourd\u2019hui',
+    moodTimeline: 'Humeur · 14 jours',
     totalEntries: 'Entrées totales', thisWeek: 'Cette semaine',
     replaced: 'Remplacés', estCost: 'Coût estimé',
     savedBy: (n) => `économisés en remplaçant ${n} comportement${n > 1 ? 's' : ''}`,
@@ -202,6 +204,7 @@ export const STRINGS = {
     all: 'Todos', allTags: 'Todas las etiquetas',
     noEntries: 'Aún no hay entradas.', tapToRecord: 'Toca el botón verde para grabar tu primera nota.',
     activity14: 'Actividad · 14 días', d14ago: '–14 d', today: 'Hoy',
+    moodTimeline: 'Ánimo · 14 días',
     totalEntries: 'Entradas totales', thisWeek: 'Esta semana',
     replaced: 'Reemplazados', estCost: 'Costo estimado',
     savedBy: (n) => `ahorrados reemplazando ${n} comportamiento${n !== 1 ? 's' : ''}`,

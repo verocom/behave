@@ -576,14 +576,16 @@ export default function App() {
     if (!user || !tagsLoaded || tags.length > 0) return;
     (async () => {
       const uRef = doc(db, 'users', user.uid);
-      const uSnap = await getDoc(uRef);
-      if (uSnap.exists() && uSnap.data().tagsSeeded) return;
-      for (const tg of DEFAULT_TAGS) {
-        await setDoc(doc(db, 'users', user.uid, 'tags', tg.id), {
+      try {
+        const uSnap = await getDoc(uRef);
+        if (uSnap.exists() && uSnap.data().tagsSeeded) return;
+        await Promise.all(DEFAULT_TAGS.map(tg => setDoc(doc(db, 'users', user.uid, 'tags', tg.id), {
           label: STRINGS[uiLang].tags[tg.id] || tg.id, emoji: tg.emoji, color: tg.color, createdAt: serverTimestamp(),
-        });
+        })));
+        await setDoc(uRef, { tagsSeeded: true }, { merge: true });
+      } catch (err) {
+        console.error('Tag seeding failed:', err);
       }
-      await setDoc(uRef, { tagsSeeded: true }, { merge: true });
     })();
   }, [user, tagsLoaded, tags.length]);
 

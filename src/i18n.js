@@ -101,6 +101,21 @@ export const STRINGS = {
       work: 'Work', home: 'At home', morning: 'Morning', afternoon: 'Afternoon',
       evening: 'Evening', night: 'Night', replaced: 'Replaced ✓', strongcraving: 'Strong craving',
     },
+    onboarding: {
+      step1Title: 'Welcome to BeHave 🌱', step1Body: "A private space to notice your patterns and gently build better ones. Let's set up your journal — takes under a minute.",
+      step2Title: 'What do you want to track?', step2Body: 'Pick the habits you want to become more aware of. You can add cost per occurrence later.',
+      step3Title: 'Your go-to replacements', step3Body: 'Pick a few healthy alternatives — they’ll show up as quick suggestions whenever you log an entry.',
+      addCustom: 'Add your own', customBehaviorPh: 'E.g. Nail biting…', customReplacementPh: 'E.g. Cold shower…',
+      skip: 'Skip', next: 'Next', back: 'Back', finish: "Let's go →",
+      behaviors: {
+        smoking: 'Cigarette', impulseBuying: 'Impulse buying', junkFood: 'Junk food', alcohol: 'Alcohol',
+        socialMedia: 'Social media scrolling', videoGames: 'Excessive gaming', nailBiting: 'Nail biting', procrastination: 'Procrastination',
+      },
+      replacements: {
+        walk: 'Walk for 10 min', callFriend: 'Call a friend', drinkWater: 'Drink a glass of water', breathe: 'Deep breathing (2 min)',
+        journal: 'Journal your feelings', stretch: 'Stretch', music: 'Listen to music', outside: 'Step outside for air',
+      },
+    },
     entryCount: (n) => `${n} entr${n !== 1 ? 'ies' : 'y'}`,
   },
 
@@ -184,6 +199,21 @@ export const STRINGS = {
       work: 'Travail', home: 'À la maison', morning: 'Matin', afternoon: 'Après-midi',
       evening: 'Soir', night: 'Nuit', replaced: 'Remplacé ✓', strongcraving: 'Craving fort',
     },
+    onboarding: {
+      step1Title: 'Bienvenue sur BeHave 🌱', step1Body: "Un espace privé pour observer tes patterns et en bâtir de meilleurs, en douceur. Configurons ton journal — moins d'une minute.",
+      step2Title: 'Qu’est-ce que tu veux suivre?', step2Body: 'Choisis les habitudes dont tu veux devenir plus conscient·e. Tu pourras ajouter un coût par occurrence plus tard.',
+      step3Title: 'Tes remplacements de base', step3Body: 'Choisis quelques alternatives saines — elles apparaîtront comme suggestions rapides à chaque entrée.',
+      addCustom: 'Ajoute le tien', customBehaviorPh: 'Ex. : Se ronger les ongles…', customReplacementPh: 'Ex. : Douche froide…',
+      skip: 'Passer', next: 'Suivant', back: 'Retour', finish: "C'est parti →",
+      behaviors: {
+        smoking: 'Cigarette', impulseBuying: 'Achat impulsif', junkFood: 'Malbouffe', alcohol: 'Alcool',
+        socialMedia: 'Défilement réseaux sociaux', videoGames: 'Jeux vidéo excessifs', nailBiting: 'Se ronger les ongles', procrastination: 'Procrastination',
+      },
+      replacements: {
+        walk: 'Marcher 10 min', callFriend: 'Appeler un ami', drinkWater: "Boire un verre d'eau", breathe: 'Respirer profondément (2 min)',
+        journal: 'Écrire ses émotions', stretch: "S'étirer", music: 'Écouter de la musique', outside: "Sortir prendre l'air",
+      },
+    },
     entryCount: (n) => `${n} entrée${n > 1 ? 's' : ''}`,
   },
 
@@ -266,6 +296,21 @@ export const STRINGS = {
       anger: 'Ira', loneliness: 'Soledad', social: 'Social', alone: 'Solo/a',
       work: 'Trabajo', home: 'En casa', morning: 'Mañana', afternoon: 'Tarde',
       evening: 'Noche', night: 'Madrugada', replaced: 'Reemplazado ✓', strongcraving: 'Antojo fuerte',
+    },
+    onboarding: {
+      step1Title: 'Bienvenido a BeHave 🌱', step1Body: 'Un espacio privado para observar tus patrones y construir mejores, con calma. Configuremos tu diario — menos de un minuto.',
+      step2Title: '¿Qué quieres seguir?', step2Body: 'Elige los hábitos de los que quieres ser más consciente. Podrás añadir un costo por vez más tarde.',
+      step3Title: 'Tus reemplazos favoritos', step3Body: 'Elige algunas alternativas saludables — aparecerán como sugerencias rápidas al registrar una entrada.',
+      addCustom: 'Añade el tuyo', customBehaviorPh: 'Ej.: Morderse las uñas…', customReplacementPh: 'Ej.: Ducha fría…',
+      skip: 'Omitir', next: 'Siguiente', back: 'Atrás', finish: 'Vamos →',
+      behaviors: {
+        smoking: 'Cigarrillo', impulseBuying: 'Compra impulsiva', junkFood: 'Comida chatarra', alcohol: 'Alcohol',
+        socialMedia: 'Redes sociales', videoGames: 'Videojuegos excesivos', nailBiting: 'Morderse las uñas', procrastination: 'Procrastinación',
+      },
+      replacements: {
+        walk: 'Caminar 10 min', callFriend: 'Llamar a un amigo', drinkWater: 'Beber un vaso de agua', breathe: 'Respirar profundamente (2 min)',
+        journal: 'Escribir tus emociones', stretch: 'Estirarse', music: 'Escuchar música', outside: 'Salir a tomar aire',
+      },
     },
     entryCount: (n) => `${n} entrada${n !== 1 ? 's' : ''}`,
   },

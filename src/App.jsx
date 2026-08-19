@@ -33,6 +33,15 @@ const DEFAULT_TAGS = [
   { id: 'strongcraving', emoji: '🔥', color: '#C45040' },
 ];
 
+// Offered as one-tap picks in the first-login onboarding flow (src/i18n.js → onboarding.behaviors/replacements)
+const SUGGESTED_BEHAVIORS = [
+  { id: 'smoking', cost: 0.75 }, { id: 'impulseBuying', cost: 20 },
+  { id: 'junkFood', cost: 8 }, { id: 'alcohol', cost: 8 },
+  { id: 'socialMedia', cost: 0 }, { id: 'videoGames', cost: 0 },
+  { id: 'nailBiting', cost: 0 }, { id: 'procrastination', cost: 0 },
+];
+const SUGGESTED_REPLACEMENTS = ['walk', 'callFriend', 'drinkWater', 'breathe', 'journal', 'stretch', 'music', 'outside'];
+
 const LANGS = [
   { code: 'en-US', flag: '🇺🇸', label: 'English (US)' },
   { code: 'en-CA', flag: '🇨🇦', label: 'English (CA)' },
@@ -360,6 +369,11 @@ const CSS = `
   .modal-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 12px auto 20px; }
   .modal-title { font-family: var(--font-display); font-size: 1.5rem; font-weight: 620; color: var(--text); margin-bottom: 18px; letter-spacing: -0.3px; }
   .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .onb-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 18px; }
+  .onb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); transition: background 0.2s, transform 0.2s; }
+  .onb-dot.on { background: var(--accent); transform: scale(1.3); }
+  .onb-emoji { font-size: 3rem; text-align: center; margin-bottom: 14px; }
+  .onb-body { font-size: 0.88rem; color: var(--text-muted); font-weight: 500; line-height: 1.6; margin-bottom: 18px; }
 
   /* Form */
   .field { margin-bottom: 14px; }
@@ -532,6 +546,8 @@ export default function App() {
   const [entries,   setEntries]   = useState([]);
   const [tags,      setTags]      = useState([]);
   const [tagsLoaded,setTagsLoaded]= useState(false);
+  const [userProfile,  setUserProfile]  = useState(null);
+  const [profileLoaded,setProfileLoaded]= useState(false);
   const [recLang,   setRecLang]   = useState(() => localStorage.getItem('behave_voicelang') || DEFAULT_VOICE[localStorage.getItem('behave_uilang') || detectUILang()]);
   const [view,      setView]      = useState('journal');
   const [recording, setRecording] = useState(false);
@@ -549,6 +565,12 @@ export default function App() {
   const [checkinTags,     setCheckinTags]     = useState([]);
   const [checkinBehavior, setCheckinBehavior] = useState('');
   const [checkinSaved,    setCheckinSaved]    = useState(false);
+  const [onbStep,         setOnbStep]         = useState(1);
+  const [onbBehaviors,    setOnbBehaviors]    = useState([]);
+  const [onbCustomBehavior,   setOnbCustomBehavior]   = useState('');
+  const [onbReplacements,     setOnbReplacements]     = useState([]);
+  const [onbCustomReplacement,setOnbCustomReplacement]= useState('');
+  const [onbSaving,       setOnbSaving]       = useState(false);
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
   const recRef = useRef(null);
@@ -561,14 +583,16 @@ export default function App() {
 
   // ── Firestore listeners ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!user) { setBehaviors([]); setEntries([]); setTags([]); setTagsLoaded(false); return; }
+    if (!user) { setBehaviors([]); setEntries([]); setTags([]); setTagsLoaded(false); setUserProfile(null); setProfileLoaded(false); return; }
     const bRef = collection(db, 'users', user.uid, 'behaviors');
     const eRef = query(collection(db, 'users', user.uid, 'entries'), orderBy('timestamp', 'desc'));
     const tRef = collection(db, 'users', user.uid, 'tags');
+    const uRef = doc(db, 'users', user.uid);
     const unsubB = onSnapshot(bRef, snap => setBehaviors(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubE = onSnapshot(eRef, snap => setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubT = onSnapshot(tRef, snap => { setTags(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setTagsLoaded(true); });
-    return () => { unsubB(); unsubE(); unsubT(); };
+    const unsubU = onSnapshot(uRef, snap => { setUserProfile(snap.exists() ? snap.data() : {}); setProfileLoaded(true); });
+    return () => { unsubB(); unsubE(); unsubT(); unsubU(); };
   }, [user?.uid]);
 
   // ── Seed default tags once, for accounts that don't have any yet ────────
@@ -598,6 +622,41 @@ export default function App() {
   useEffect(() => { localStorage.setItem('behave_uilang', uiLang); document.documentElement.lang = uiLang; }, [uiLang]);
   useEffect(() => { localStorage.setItem('behave_voicelang', recLang); }, [recLang]);
   const TAG_MAP = Object.fromEntries(tags.map(tg => [tg.id, tg]));
+
+  // ── Onboarding (first login: suggest behaviors & replacement tags) ─────────
+  const showOnboarding = !!user && profileLoaded && !userProfile?.onboarded && behaviors.length === 0 && entries.length === 0;
+  const toggleOnbBehavior = id => setOnbBehaviors(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const toggleOnbReplacement = id => setOnbReplacements(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  async function skipOnboarding() {
+    if (!user) return;
+    try { await setDoc(doc(db, 'users', user.uid), { onboarded: true }, { merge: true }); }
+    catch (err) { console.error('Onboarding skip failed:', err); }
+  }
+  async function finishOnboarding() {
+    if (!user) return;
+    setOnbSaving(true);
+    try {
+      const writes = onbBehaviors.map(id => {
+        const sugg = SUGGESTED_BEHAVIORS.find(s => s.id === id);
+        return addDoc(collection(db, 'users', user.uid, 'behaviors'), {
+          label: t.onboarding.behaviors[id] || id, cost: sugg?.cost || 0, createdAt: serverTimestamp(),
+        });
+      });
+      if (onbCustomBehavior.trim()) {
+        writes.push(addDoc(collection(db, 'users', user.uid, 'behaviors'), {
+          label: onbCustomBehavior.trim(), cost: 0, createdAt: serverTimestamp(),
+        }));
+      }
+      const replacementLabels = onbReplacements.map(id => t.onboarding.replacements[id] || id);
+      if (onbCustomReplacement.trim()) replacementLabels.push(onbCustomReplacement.trim());
+      await Promise.all(writes);
+      await setDoc(doc(db, 'users', user.uid), { onboarded: true, favoriteReplacements: replacementLabels }, { merge: true });
+    } catch (err) {
+      console.error('Onboarding save failed:', err);
+    } finally {
+      setOnbSaving(false);
+    }
+  }
 
   // ── Behaviors ─────────────────────────────────────────────────────────────
   function openNewBehavior() { setEditingBehaviorId(null); setNewBForm({ label: '', cost: '' }); setShowNewB(true); }
@@ -975,6 +1034,14 @@ export default function App() {
               <div className="field">
                 <label>{t.replacementLabel}</label>
                 <input type="text" placeholder={t.replacementPh} value={entryForm.replacement} onChange={e => setEntryForm(p => ({ ...p, replacement: e.target.value }))}/>
+                {userProfile?.favoriteReplacements?.length > 0 && (
+                  <div className="tags" style={{ marginTop: 8 }}>
+                    {userProfile.favoriteReplacements.map((r, i) => (
+                      <span key={i} className="tag" style={{ background: 'var(--warm-light)', borderColor: 'var(--warm)', color: 'var(--warm)' }}
+                        onClick={() => setEntryForm(p => ({ ...p, replacement: r }))}>{r}</span>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="field">
                 <label>{t.noteLabel}</label>
@@ -1019,6 +1086,71 @@ export default function App() {
                 <button className="btn btn-ghost" style={{ flex: 1 }} onClick={closeNewTag}>{t.cancel}</button>
                 <button className="btn btn-primary" style={{ flex: 2 }} onClick={saveTag} disabled={!newTagForm.label.trim()}>{editingTagId ? t.updateTagBtn : t.addTagBtn}</button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* First-login onboarding: suggest behaviors & replacement tags */}
+        {showOnboarding && (
+          <div className="overlay">
+            <div className="modal">
+              <div className="modal-handle"/>
+              <div className="onb-dots">
+                {[1, 2, 3].map(n => <div key={n} className={`onb-dot ${onbStep === n ? 'on' : ''}`}/>)}
+              </div>
+              {onbStep === 1 && (
+                <>
+                  <div className="onb-emoji">🌱</div>
+                  <div className="modal-title" style={{ textAlign: 'center' }}>{t.onboarding.step1Title}</div>
+                  <p className="onb-body" style={{ textAlign: 'center' }}>{t.onboarding.step1Body}</p>
+                  <div className="modal-actions">
+                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={skipOnboarding}>{t.onboarding.skip}</button>
+                    <button className="btn btn-primary" style={{ flex: 2 }} onClick={() => setOnbStep(2)}>{t.onboarding.next}</button>
+                  </div>
+                </>
+              )}
+              {onbStep === 2 && (
+                <>
+                  <div className="modal-title">{t.onboarding.step2Title}</div>
+                  <p className="onb-body">{t.onboarding.step2Body}</p>
+                  <div className="tags" style={{ marginBottom: 14 }}>
+                    {SUGGESTED_BEHAVIORS.map(s => (
+                      <span key={s.id} className={`tag ${onbBehaviors.includes(s.id) ? '' : 'off'}`}
+                        style={{ background: 'var(--accent-light)', borderColor: 'var(--accent)', color: 'var(--accent-deep)' }}
+                        onClick={() => toggleOnbBehavior(s.id)}>{t.onboarding.behaviors[s.id]}</span>
+                    ))}
+                  </div>
+                  <div className="field">
+                    <label>{t.onboarding.addCustom}</label>
+                    <input type="text" placeholder={t.onboarding.customBehaviorPh} value={onbCustomBehavior} onChange={e => setOnbCustomBehavior(e.target.value)}/>
+                  </div>
+                  <div className="modal-actions">
+                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setOnbStep(3)}>{t.onboarding.skip}</button>
+                    <button className="btn btn-primary" style={{ flex: 2 }} onClick={() => setOnbStep(3)}>{t.onboarding.next}</button>
+                  </div>
+                </>
+              )}
+              {onbStep === 3 && (
+                <>
+                  <div className="modal-title">{t.onboarding.step3Title}</div>
+                  <p className="onb-body">{t.onboarding.step3Body}</p>
+                  <div className="tags" style={{ marginBottom: 14 }}>
+                    {SUGGESTED_REPLACEMENTS.map(id => (
+                      <span key={id} className={`tag ${onbReplacements.includes(id) ? '' : 'off'}`}
+                        style={{ background: 'var(--warm-light)', borderColor: 'var(--warm)', color: 'var(--warm)' }}
+                        onClick={() => toggleOnbReplacement(id)}>{t.onboarding.replacements[id]}</span>
+                    ))}
+                  </div>
+                  <div className="field">
+                    <label>{t.onboarding.addCustom}</label>
+                    <input type="text" placeholder={t.onboarding.customReplacementPh} value={onbCustomReplacement} onChange={e => setOnbCustomReplacement(e.target.value)}/>
+                  </div>
+                  <div className="modal-actions">
+                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setOnbStep(2)}>{t.onboarding.back}</button>
+                    <button className="btn btn-primary" style={{ flex: 2 }} onClick={finishOnboarding} disabled={onbSaving}>{onbSaving ? '…' : t.onboarding.finish}</button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

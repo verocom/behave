@@ -296,6 +296,7 @@ const CSS = `
   .card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 12px; box-shadow: var(--shadow-sm); animation: fadeUp 0.45s cubic-bezier(.2,.8,.2,1) both; }
   .content > .card:nth-of-type(1) { animation-delay: 0.03s; } .content > .card:nth-of-type(2) { animation-delay: 0.08s; } .content > .card:nth-of-type(3) { animation-delay: 0.13s; } .content > .card:nth-of-type(4) { animation-delay: 0.18s; }
   .card-title { font-size: 0.68rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+  .checkin-card { background: linear-gradient(135deg, var(--accent-light), var(--warm-light)); border-color: var(--accent); }
 
   /* Stats */
   .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
@@ -545,6 +546,9 @@ export default function App() {
   const [showNewTag,   setShowNewTag]   = useState(false);
   const [newTagForm,   setNewTagForm]   = useState({ label: '', emoji: '🏷️', color: '#6B9E8A' });
   const [editingTagId, setEditingTagId] = useState(null);
+  const [checkinTags,     setCheckinTags]     = useState([]);
+  const [checkinBehavior, setCheckinBehavior] = useState('');
+  const [checkinSaved,    setCheckinSaved]    = useState(false);
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
   const recRef = useRef(null);
@@ -672,6 +676,18 @@ export default function App() {
     if (!user) return;
     await deleteDoc(doc(db, 'users', user.uid, 'entries', id));
   }
+  async function quickLog() {
+    if (checkinTags.length === 0 || !user) return;
+    await addDoc(collection(db, 'users', user.uid, 'entries'), {
+      behaviorId: checkinBehavior || null, timestamp: Date.now(),
+      transcript: '', tags: checkinTags, replacement: '', note: '',
+      type: 'checkin', createdAt: serverTimestamp(),
+    });
+    setCheckinTags([]); setCheckinBehavior('');
+    setCheckinSaved(true);
+    setTimeout(() => setCheckinSaved(false), 2000);
+  }
+  const toggleCheckinTag = id => setCheckinTags(p => p.includes(id) ? p.filter(t => t !== id) : [...p, id]);
   const toggleTag = id => setEntryForm(p => ({ ...p, tags: p.tags.includes(id) ? p.tags.filter(t => t !== id) : [...p.tags, id] }));
   const closeEntry = () => { setShowEntry(false); stopRec(); setTranscript(''); setEntryForm({ behaviorId: '', tags: [], replacement: '', note: '' }); setEditingEntryId(null); };
 
@@ -704,6 +720,29 @@ export default function App() {
     const days = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
     return (
       <>
+        {tags.length > 0 && (
+          <div className="card checkin-card">
+            <div className="card-title">{t.checkinTitle}</div>
+            <div className="tags" style={{ marginBottom: 12 }}>
+              {tags.map(tg => (
+                <span key={tg.id} className={`tag ${checkinTags.includes(tg.id) ? '' : 'off'}`}
+                  style={{ background: tg.color + '22', borderColor: tg.color + (checkinTags.includes(tg.id) ? '99' : '44'), color: tg.color }}
+                  onClick={() => toggleCheckinTag(tg.id)}>{tg.emoji} {tg.label}</span>
+              ))}
+            </div>
+            {behaviors.length > 0 && checkinTags.length > 0 && (
+              <div className="field" style={{ marginBottom: 12 }}>
+                <select value={checkinBehavior} onChange={e => setCheckinBehavior(e.target.value)}>
+                  <option value="">{t.checkinNoBehavior}</option>
+                  {behaviors.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+                </select>
+              </div>
+            )}
+            <button className="btn btn-primary btn-full" onClick={quickLog} disabled={checkinTags.length === 0}>
+              {checkinSaved ? t.checkinSaved : t.checkinLog}
+            </button>
+          </div>
+        )}
         <div className="filter-bar">
           <div className={`chip ${fBehavior === 'all' ? 'on' : ''}`} onClick={() => setFBehavior('all')}>{t.all}</div>
           {behaviors.map(b => <div key={b.id} className={`chip ${fBehavior === b.id ? 'on' : ''}`} onClick={() => setFBehavior(b.id)}>{b.label}</div>)}

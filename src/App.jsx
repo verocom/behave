@@ -570,6 +570,8 @@ export default function App() {
   const [onbCustomBehavior,   setOnbCustomBehavior]   = useState('');
   const [onbReplacements,     setOnbReplacements]     = useState([]);
   const [onbCustomReplacement,setOnbCustomReplacement]= useState('');
+  const [onbTags,         setOnbTags]         = useState(() => DEFAULT_TAGS.map(tg => tg.id));
+  const [onbCustomTag,    setOnbCustomTag]    = useState('');
   const [onbSaving,       setOnbSaving]       = useState(false);
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
@@ -595,9 +597,9 @@ export default function App() {
     return () => { unsubB(); unsubE(); unsubT(); unsubU(); };
   }, [user?.uid]);
 
-  // ── Seed default tags once, for accounts that don't have any yet ────────
+  // ── Seed default tags once, for accounts that skip onboarding without picking any ──
   useEffect(() => {
-    if (!user || !tagsLoaded || tags.length > 0) return;
+    if (!user || !tagsLoaded || tags.length > 0 || !profileLoaded || !userProfile?.onboarded) return;
     (async () => {
       const uRef = doc(db, 'users', user.uid);
       try {
@@ -611,7 +613,7 @@ export default function App() {
         console.error('Tag seeding failed:', err);
       }
     })();
-  }, [user, tagsLoaded, tags.length]);
+  }, [user, tagsLoaded, tags.length, profileLoaded, userProfile?.onboarded]);
 
   // ── Dark mode ────────────────────────────────────────────────────────────
   useEffect(() => { document.body.style.background = dark ? '#0F1512' : '#F6F1E7'; }, [dark]);
@@ -627,6 +629,7 @@ export default function App() {
   const showOnboarding = !!user && profileLoaded && !userProfile?.onboarded && behaviors.length === 0 && entries.length === 0;
   const toggleOnbBehavior = id => setOnbBehaviors(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   const toggleOnbReplacement = id => setOnbReplacements(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const toggleOnbTag = id => setOnbTags(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   async function skipOnboarding() {
     if (!user) return;
     try { await setDoc(doc(db, 'users', user.uid), { onboarded: true }, { merge: true }); }
@@ -649,8 +652,19 @@ export default function App() {
       }
       const replacementLabels = onbReplacements.map(id => t.onboarding.replacements[id] || id);
       if (onbCustomReplacement.trim()) replacementLabels.push(onbCustomReplacement.trim());
-      await Promise.all(writes);
-      await setDoc(doc(db, 'users', user.uid), { onboarded: true, favoriteReplacements: replacementLabels }, { merge: true });
+      const tagWrites = onbTags.map(id => {
+        const def = DEFAULT_TAGS.find(dt => dt.id === id);
+        return setDoc(doc(db, 'users', user.uid, 'tags', id), {
+          label: t.tags[id] || id, emoji: def?.emoji || '🏷️', color: def?.color || '#6B9E8A', createdAt: serverTimestamp(),
+        });
+      });
+      if (onbCustomTag.trim()) {
+        tagWrites.push(addDoc(collection(db, 'users', user.uid, 'tags'), {
+          label: onbCustomTag.trim(), emoji: '🏷️', color: '#6B9E8A', createdAt: serverTimestamp(),
+        }));
+      }
+      await Promise.all([...writes, ...tagWrites]);
+      await setDoc(doc(db, 'users', user.uid), { onboarded: true, tagsSeeded: true, favoriteReplacements: replacementLabels }, { merge: true });
     } catch (err) {
       console.error('Onboarding save failed:', err);
     } finally {
@@ -1096,7 +1110,7 @@ export default function App() {
             <div className="modal">
               <div className="modal-handle"/>
               <div className="onb-dots">
-                {[1, 2, 3].map(n => <div key={n} className={`onb-dot ${onbStep === n ? 'on' : ''}`}/>)}
+                {[1, 2, 3, 4].map(n => <div key={n} className={`onb-dot ${onbStep === n ? 'on' : ''}`}/>)}
               </div>
               {onbStep === 1 && (
                 <>
@@ -1147,6 +1161,27 @@ export default function App() {
                   </div>
                   <div className="modal-actions">
                     <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setOnbStep(2)}>{t.onboarding.back}</button>
+                    <button className="btn btn-primary" style={{ flex: 2 }} onClick={() => setOnbStep(4)}>{t.onboarding.next}</button>
+                  </div>
+                </>
+              )}
+              {onbStep === 4 && (
+                <>
+                  <div className="modal-title">{t.onboarding.step4Title}</div>
+                  <p className="onb-body">{t.onboarding.step4Body}</p>
+                  <div className="tags" style={{ marginBottom: 14 }}>
+                    {DEFAULT_TAGS.map(tg => (
+                      <span key={tg.id} className={`tag ${onbTags.includes(tg.id) ? '' : 'off'}`}
+                        style={{ background: tg.color + '22', borderColor: tg.color, color: tg.color }}
+                        onClick={() => toggleOnbTag(tg.id)}>{tg.emoji} {t.tags[tg.id] || tg.id}</span>
+                    ))}
+                  </div>
+                  <div className="field">
+                    <label>{t.onboarding.addCustom}</label>
+                    <input type="text" placeholder={t.onboarding.customTagPh} value={onbCustomTag} onChange={e => setOnbCustomTag(e.target.value)}/>
+                  </div>
+                  <div className="modal-actions">
+                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setOnbStep(3)}>{t.onboarding.back}</button>
                     <button className="btn btn-primary" style={{ flex: 2 }} onClick={finishOnboarding} disabled={onbSaving}>{onbSaving ? '…' : t.onboarding.finish}</button>
                   </div>
                 </>

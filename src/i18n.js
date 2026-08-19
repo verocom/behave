@@ -105,7 +105,8 @@ export const STRINGS = {
       step1Title: 'Welcome to BeHave 🌱', step1Body: "A private space to notice your patterns and gently build better ones. Let's set up your journal — takes under a minute.",
       step2Title: 'What do you want to track?', step2Body: 'Pick the habits you want to become more aware of. You can add cost per occurrence later.',
       step3Title: 'Your go-to replacements', step3Body: 'Pick a few healthy alternatives — they’ll show up as quick suggestions whenever you log an entry.',
-      addCustom: 'Add your own', customBehaviorPh: 'E.g. Nail biting…', customReplacementPh: 'E.g. Cold shower…',
+      step4Title: 'Contexts & triggers', step4Body: 'Pick the moods and situations worth tracking — you can edit these anytime in "Manage".',
+      addCustom: 'Add your own', customBehaviorPh: 'E.g. Nail biting…', customReplacementPh: 'E.g. Cold shower…', customTagPh: 'E.g. Rainy days…',
       skip: 'Skip', next: 'Next', back: 'Back', finish: "Let's go →",
       behaviors: {
         smoking: 'Cigarette', impulseBuying: 'Impulse buying', junkFood: 'Junk food', alcohol: 'Alcohol',
@@ -203,7 +204,8 @@ export const STRINGS = {
       step1Title: 'Bienvenue sur BeHave 🌱', step1Body: "Un espace privé pour observer tes patterns et en bâtir de meilleurs, en douceur. Configurons ton journal — moins d'une minute.",
       step2Title: 'Qu’est-ce que tu veux suivre?', step2Body: 'Choisis les habitudes dont tu veux devenir plus conscient·e. Tu pourras ajouter un coût par occurrence plus tard.',
       step3Title: 'Tes remplacements de base', step3Body: 'Choisis quelques alternatives saines — elles apparaîtront comme suggestions rapides à chaque entrée.',
-      addCustom: 'Ajoute le tien', customBehaviorPh: 'Ex. : Se ronger les ongles…', customReplacementPh: 'Ex. : Douche froide…',
+      step4Title: 'Contextes et déclencheurs', step4Body: 'Choisis les émotions et situations que tu veux suivre — modifiable en tout temps dans « Gérer ».',
+      addCustom: 'Ajoute le tien', customBehaviorPh: 'Ex. : Se ronger les ongles…', customReplacementPh: 'Ex. : Douche froide…', customTagPh: 'Ex. : Jours de pluie…',
       skip: 'Passer', next: 'Suivant', back: 'Retour', finish: "C'est parti →",
       behaviors: {
         smoking: 'Cigarette', impulseBuying: 'Achat impulsif', junkFood: 'Malbouffe', alcohol: 'Alcool',
@@ -301,7 +303,8 @@ export const STRINGS = {
       step1Title: 'Bienvenido a BeHave 🌱', step1Body: 'Un espacio privado para observar tus patrones y construir mejores, con calma. Configuremos tu diario — menos de un minuto.',
       step2Title: '¿Qué quieres seguir?', step2Body: 'Elige los hábitos de los que quieres ser más consciente. Podrás añadir un costo por vez más tarde.',
       step3Title: 'Tus reemplazos favoritos', step3Body: 'Elige algunas alternativas saludables — aparecerán como sugerencias rápidas al registrar una entrada.',
-      addCustom: 'Añade el tuyo', customBehaviorPh: 'Ej.: Morderse las uñas…', customReplacementPh: 'Ej.: Ducha fría…',
+      step4Title: 'Contextos y desencadenantes', step4Body: 'Elige los estados de ánimo y situaciones que quieres seguir — editable en cualquier momento en «Gestionar».',
+      addCustom: 'Añade el tuyo', customBehaviorPh: 'Ej.: Morderse las uñas…', customReplacementPh: 'Ej.: Ducha fría…', customTagPh: 'Ej.: Días de lluvia…',
       skip: 'Omitir', next: 'Siguiente', back: 'Atrás', finish: 'Vamos →',
       behaviors: {
         smoking: 'Cigarrillo', impulseBuying: 'Compra impulsiva', junkFood: 'Comida chatarra', alcohol: 'Alcohol',

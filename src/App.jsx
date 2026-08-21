@@ -573,6 +573,7 @@ export default function App() {
   const [onbTags,         setOnbTags]         = useState(() => DEFAULT_TAGS.map(tg => tg.id));
   const [onbCustomTag,    setOnbCustomTag]    = useState('');
   const [onbSaving,       setOnbSaving]       = useState(false);
+  const [forceOnboarding, setForceOnboarding] = useState(false);
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
   const recRef = useRef(null);
@@ -626,12 +627,34 @@ export default function App() {
   const TAG_MAP = Object.fromEntries(tags.map(tg => [tg.id, tg]));
 
   // ── Onboarding (first login: suggest behaviors & replacement tags) ─────────
-  const showOnboarding = !!user && profileLoaded && !userProfile?.onboarded && behaviors.length === 0 && entries.length === 0;
+  const showOnboarding = !!user && profileLoaded && (forceOnboarding || (!userProfile?.onboarded && behaviors.length === 0 && entries.length === 0));
+  const existingBehaviorLabels = new Set(behaviors.map(b => b.label));
+  const existingTagIds = new Set(tags.map(tg => tg.id));
+  const existingReplacementLabels = new Set(userProfile?.favoriteReplacements || []);
+  const onbSuggestedBehaviors = SUGGESTED_BEHAVIORS.filter(s => !existingBehaviorLabels.has(t.onboarding.behaviors[s.id]));
+  const onbSuggestedReplacements = SUGGESTED_REPLACEMENTS.filter(id => !existingReplacementLabels.has(t.onboarding.replacements[id]));
+  const onbSuggestedTags = DEFAULT_TAGS.filter(tg => !existingTagIds.has(tg.id));
   const toggleOnbBehavior = id => setOnbBehaviors(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   const toggleOnbReplacement = id => setOnbReplacements(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   const toggleOnbTag = id => setOnbTags(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  function resetOnboardingForm() {
+    setOnbStep(1);
+    setOnbBehaviors([]); setOnbCustomBehavior('');
+    setOnbReplacements([]); setOnbCustomReplacement('');
+    setOnbTags(DEFAULT_TAGS.map(tg => tg.id)); setOnbCustomTag('');
+  }
+  function replayOnboarding() {
+    setOnbStep(1);
+    setOnbBehaviors([]); setOnbCustomBehavior('');
+    setOnbReplacements([]); setOnbCustomReplacement('');
+    setOnbTags(DEFAULT_TAGS.filter(tg => !tags.some(tg2 => tg2.id === tg.id)).map(tg => tg.id));
+    setOnbCustomTag('');
+    setForceOnboarding(true);
+  }
   async function skipOnboarding() {
     if (!user) return;
+    setForceOnboarding(false);
+    resetOnboardingForm();
     try { await setDoc(doc(db, 'users', user.uid), { onboarded: true }, { merge: true }); }
     catch (err) { console.error('Onboarding skip failed:', err); }
   }
@@ -664,7 +687,12 @@ export default function App() {
         }));
       }
       await Promise.all([...writes, ...tagWrites]);
-      await setDoc(doc(db, 'users', user.uid), { onboarded: true, tagsSeeded: true, favoriteReplacements: replacementLabels }, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), {
+        onboarded: true, tagsSeeded: true,
+        favoriteReplacements: [...new Set([...existingReplacementLabels, ...replacementLabels])],
+      }, { merge: true });
+      setForceOnboarding(false);
+      resetOnboardingForm();
     } catch (err) {
       console.error('Onboarding save failed:', err);
     } finally {
@@ -952,6 +980,9 @@ export default function App() {
           {LANGS.map(l => <div key={l.code} className={`lang-chip ${recLang === l.code ? 'on' : ''}`} onClick={() => setRecLang(l.code)}>{l.flag} {l.label}</div>)}
         </div>
       </div>
+      <div className="card">
+        <button className="btn btn-ghost btn-full" onClick={replayOnboarding}>🌱 {t.onboarding.replay}</button>
+      </div>
     </>
   );
 
@@ -1128,7 +1159,8 @@ export default function App() {
                   <div className="modal-title">{t.onboarding.step2Title}</div>
                   <p className="onb-body">{t.onboarding.step2Body}</p>
                   <div className="tags" style={{ marginBottom: 14 }}>
-                    {SUGGESTED_BEHAVIORS.map(s => (
+                    {onbSuggestedBehaviors.length === 0 && <p className="onb-body" style={{ margin: 0 }}>{t.onboarding.allAdded}</p>}
+                    {onbSuggestedBehaviors.map(s => (
                       <span key={s.id} className={`tag ${onbBehaviors.includes(s.id) ? '' : 'off'}`}
                         style={{ background: 'var(--accent-light)', borderColor: 'var(--accent)', color: 'var(--accent-deep)' }}
                         onClick={() => toggleOnbBehavior(s.id)}>{t.onboarding.behaviors[s.id]}</span>
@@ -1149,7 +1181,8 @@ export default function App() {
                   <div className="modal-title">{t.onboarding.step3Title}</div>
                   <p className="onb-body">{t.onboarding.step3Body}</p>
                   <div className="tags" style={{ marginBottom: 14 }}>
-                    {SUGGESTED_REPLACEMENTS.map(id => (
+                    {onbSuggestedReplacements.length === 0 && <p className="onb-body" style={{ margin: 0 }}>{t.onboarding.allAdded}</p>}
+                    {onbSuggestedReplacements.map(id => (
                       <span key={id} className={`tag ${onbReplacements.includes(id) ? '' : 'off'}`}
                         style={{ background: 'var(--warm-light)', borderColor: 'var(--warm)', color: 'var(--warm)' }}
                         onClick={() => toggleOnbReplacement(id)}>{t.onboarding.replacements[id]}</span>
@@ -1170,7 +1203,8 @@ export default function App() {
                   <div className="modal-title">{t.onboarding.step4Title}</div>
                   <p className="onb-body">{t.onboarding.step4Body}</p>
                   <div className="tags" style={{ marginBottom: 14 }}>
-                    {DEFAULT_TAGS.map(tg => (
+                    {onbSuggestedTags.length === 0 && <p className="onb-body" style={{ margin: 0 }}>{t.onboarding.allAdded}</p>}
+                    {onbSuggestedTags.map(tg => (
                       <span key={tg.id} className={`tag ${onbTags.includes(tg.id) ? '' : 'off'}`}
                         style={{ background: tg.color + '22', borderColor: tg.color, color: tg.color }}
                         onClick={() => toggleOnbTag(tg.id)}>{tg.emoji} {t.tags[tg.id] || tg.id}</span>

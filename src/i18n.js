@@ -108,6 +108,7 @@ export const STRINGS = {
       step4Title: 'Contexts & triggers', step4Body: 'Pick the moods and situations worth tracking — you can edit these anytime in "Manage".',
       addCustom: 'Add your own', customBehaviorPh: 'E.g. Nail biting…', customReplacementPh: 'E.g. Cold shower…', customTagPh: 'E.g. Rainy days…',
       skip: 'Skip', next: 'Next', back: 'Back', finish: "Let's go →",
+      replay: 'Replay the intro', allAdded: "You've already added them all ✓",
       behaviors: {
         smoking: 'Cigarette', impulseBuying: 'Impulse buying', junkFood: 'Junk food', alcohol: 'Alcohol',
         socialMedia: 'Social media scrolling', videoGames: 'Excessive gaming', nailBiting: 'Nail biting', procrastination: 'Procrastination',
@@ -207,6 +208,7 @@ export const STRINGS = {
       step4Title: 'Contextes et déclencheurs', step4Body: 'Choisis les émotions et situations que tu veux suivre — modifiable en tout temps dans « Gérer ».',
       addCustom: 'Ajoute le tien', customBehaviorPh: 'Ex. : Se ronger les ongles…', customReplacementPh: 'Ex. : Douche froide…', customTagPh: 'Ex. : Jours de pluie…',
       skip: 'Passer', next: 'Suivant', back: 'Retour', finish: "C'est parti →",
+      replay: 'Revoir l’introduction', allAdded: 'Tu as déjà tout ajouté ✓',
       behaviors: {
         smoking: 'Cigarette', impulseBuying: 'Achat impulsif', junkFood: 'Malbouffe', alcohol: 'Alcool',
         socialMedia: 'Défilement réseaux sociaux', videoGames: 'Jeux vidéo excessifs', nailBiting: 'Se ronger les ongles', procrastination: 'Procrastination',
@@ -306,6 +308,7 @@ export const STRINGS = {
       step4Title: 'Contextos y desencadenantes', step4Body: 'Elige los estados de ánimo y situaciones que quieres seguir — editable en cualquier momento en «Gestionar».',
       addCustom: 'Añade el tuyo', customBehaviorPh: 'Ej.: Morderse las uñas…', customReplacementPh: 'Ej.: Ducha fría…', customTagPh: 'Ej.: Días de lluvia…',
       skip: 'Omitir', next: 'Siguiente', back: 'Atrás', finish: 'Vamos →',
+      replay: 'Repetir la introducción', allAdded: 'Ya has añadido todo ✓',
       behaviors: {
         smoking: 'Cigarrillo', impulseBuying: 'Compra impulsiva', junkFood: 'Comida chatarra', alcohol: 'Alcohol',
         socialMedia: 'Redes sociales', videoGames: 'Videojuegos excesivos', nailBiting: 'Morderse las uñas', procrastination: 'Procrastinación',

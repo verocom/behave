@@ -3,13 +3,21 @@ import { auth, db } from './firebase';
 import {
   onAuthStateChanged, signInWithEmailAndPassword,
   createUserWithEmailAndPassword, signInWithPopup,
-  GoogleAuthProvider, signOut, updateProfile,
+  GoogleAuthProvider, EmailAuthProvider, signOut, updateProfile, reauthenticateWithPopup,
+  reauthenticateWithCredential, deleteUser,
 } from 'firebase/auth';
 import {
   collection, addDoc, deleteDoc, doc, onSnapshot,
-  query, orderBy, serverTimestamp, setDoc, updateDoc, getDoc,
+  query, orderBy, serverTimestamp, setDoc, updateDoc, getDoc, getDocs, writeBatch,
 } from 'firebase/firestore';
 import { UI_LANGS, LOCALE, DEFAULT_VOICE, STRINGS, detectUILang } from './i18n';
+import { CSS } from './styles';
+import { useToast } from './components/Toast';
+import ConfirmSheet from './components/ConfirmSheet';
+import LegalSheet from './components/LegalSheet';
+import { PRIVACY, TERMS } from './legal';
+import { useModalA11y } from './hooks/useModalA11y';
+import { registerSW } from 'virtual:pwa-register';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 // Seeded into a new user's own `tags` collection on first load, using these exact
@@ -59,8 +67,8 @@ const LANGS = [
 function formatDate(ts, locale) {
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(ts));
 }
-function formatMoney(n, locale) {
-  return new Intl.NumberFormat(locale, { style: 'currency', currency: 'CAD' }).format(n || 0);
+function formatMoney(n, locale, currency = 'CAD') {
+  return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(n || 0);
 }
 function groupByDay(entries) {
   const map = {};
@@ -191,266 +199,9 @@ function MoodTimeline({ entries, tagMap, days = 14 }) {
 }
 
 // ── CSS ────────────────────────────────────────────────────────────────────────
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Manrope:wght@400;500;600;700;800&display=swap');
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; font-family: 'Manrope', sans-serif; -webkit-font-smoothing: antialiased; }
-
-  .app {
-    --font-display: 'Fraunces', serif;
-    --accent: #35755D; --accent-deep: #24503F;
-    --accent-light: rgba(53,117,93,0.12); --accent-ring: rgba(53,117,93,0.24);
-    --warm: #D97D46; --warm-light: rgba(217,125,70,0.14);
-    --success: #3F8F5C; --danger: #C1503C;
-    --bg: #F6F1E7; --surface: #FFFFFF; --surface2: #EFE8DA; --surface3: #E5DBC7;
-    --surface-glass: rgba(255,255,255,0.78);
-    --border: #E1D6C0; --text: #211B14; --text-muted: #82755F; --text-dim: #B9AB92;
-    --shadow-sm: 0 2px 10px rgba(38,28,14,0.05);
-    --shadow:    0 8px 28px rgba(38,28,14,0.08);
-    --shadow-lg: 0 16px 48px rgba(38,28,14,0.16);
-    --shadow-accent: 0 10px 28px -6px var(--accent-ring);
-    --radius: 22px; --radius-sm: 13px;
-    max-width: 480px; margin: 0 auto; min-height: 100vh;
-    display: flex; flex-direction: column;
-    background: var(--bg); color: var(--text);
-    position: relative; isolation: isolate;
-    transition: background-color 0.3s, color 0.3s;
-  }
-  .app.dark {
-    --accent: #6FC79E; --accent-deep: #93D9B9;
-    --accent-light: rgba(111,199,158,0.14); --accent-ring: rgba(111,199,158,0.26);
-    --warm: #E8A56E; --warm-light: rgba(232,165,110,0.14);
-    --success: #6FC79E; --danger: #D9836A;
-    --bg: #0F1512; --surface: #171F1A; --surface2: #1E2721; --surface3: #263329;
-    --surface-glass: rgba(23,31,26,0.78);
-    --border: #2B3A32; --text: #ECE7DB; --text-muted: #92A398; --text-dim: #4B5A50;
-    --shadow-sm: 0 2px 10px rgba(0,0,0,0.25);
-    --shadow:    0 8px 28px rgba(0,0,0,0.35);
-    --shadow-lg: 0 16px 48px rgba(0,0,0,0.55);
-    --shadow-accent: 0 10px 28px -6px rgba(111,199,158,0.35);
-  }
-  .app::after {
-    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 999;
-    opacity: 0.035; mix-blend-mode: overlay;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  }
-  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-  /* Header */
-  .header { padding: calc(18px + env(safe-area-inset-top)) 18px 4px; display: flex; align-items: center; justify-content: space-between; position: relative; }
-  .header::before { content: ''; position: absolute; inset: -20px 0 0; background: radial-gradient(ellipse 70% 60% at 15% 0%, var(--accent-ring) 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 90% 20%, var(--warm-light) 0%, transparent 55%); pointer-events: none; }
-  .logo { position: relative; z-index: 1; line-height: 1; cursor: default; animation: fadeUp 0.5s cubic-bezier(.2,.8,.2,1) both; }
-  .logo-name { font-family: var(--font-display); font-size: 1.7rem; line-height: 1; letter-spacing: -0.5px; }
-  .logo-name .be { font-weight: 340; font-style: italic; color: var(--text-muted); }
-  .logo-name .have { font-weight: 680; color: var(--accent); }
-  .logo-sub { font-size: 0.66rem; color: var(--text-dim); font-weight: 700; margin-top: 3px; letter-spacing: 1.4px; text-transform: uppercase; }
-  .header-actions { display: flex; align-items: center; gap: 8px; position: relative; z-index: 1; animation: fadeUp 0.5s 0.05s cubic-bezier(.2,.8,.2,1) both; }
-  .icon-btn { width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-sm); transition: transform 0.15s, color 0.2s, border-color 0.2s, box-shadow 0.2s; }
-  .icon-btn:hover { color: var(--accent); border-color: var(--accent); box-shadow: var(--shadow-accent); }
-  .icon-btn:active { transform: scale(0.9); }
-  .icon-btn.danger:hover { color: var(--danger); border-color: var(--danger); }
-  .user-pill { display: flex; align-items: center; gap: 7px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 20px; padding: 6px 14px 6px 8px; cursor: default; box-shadow: var(--shadow-sm); }
-  .user-pill-av { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-deep)); color: white; font-size: 0.7rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
-  .user-pill-name { font-size: 0.8rem; font-weight: 700; color: var(--text); }
-
-  /* Content */
-  .content { flex: 1; padding: 14px 16px calc(110px + env(safe-area-inset-bottom)); overflow-y: auto; -webkit-overflow-scrolling: touch; }
-
-  /* ── Bottom Tab Bar (native pattern) ── */
-  .tabbar {
-    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; max-width: 480px;
-    background: var(--surface-glass);
-    backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-top: 1.5px solid var(--border);
-    display: flex; align-items: stretch;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
-    z-index: 100;
-    box-shadow: 0 -4px 24px rgba(0,0,0,0.08);
-  }
-  .app.dark .tabbar { box-shadow: 0 -4px 24px rgba(0,0,0,0.35); }
-  .tab {
-    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 3px; padding: 6px 4px; min-height: 52px;
-    border: none; background: transparent; border-radius: 14px;
-    color: var(--text-muted); cursor: pointer;
-    font-family: 'Manrope', sans-serif; font-size: 0.62rem; font-weight: 800;
-    letter-spacing: 0.3px;
-    transition: color 0.15s, transform 0.1s;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .tab:active { transform: scale(0.92); }
-  .tab.on { color: var(--accent); }
-  .tab svg { width: 23px; height: 23px; }
-
-  /* Center FAB in tab bar */
-  .tab-fab-slot { flex: 1.2; display: flex; align-items: center; justify-content: center; position: relative; }
-  .record-btn {
-    width: 60px; height: 60px; border-radius: 50%; border: none;
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
-    position: relative; margin-top: -26px;
-    transition: transform 0.15s;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .record-btn:active { transform: scale(0.92); }
-  .record-btn.idle { background: linear-gradient(145deg, var(--accent), var(--accent-deep)); color: white; box-shadow: 0 8px 28px var(--accent-ring), 0 2px 8px rgba(0,0,0,0.18), inset 0 1px 1px rgba(255,255,255,0.25); }
-  .record-btn.active { background: linear-gradient(145deg, #E07060, #C05040); color: white; box-shadow: 0 6px 24px rgba(192,80,64,0.35); }
-  .record-btn.idle::before, .record-btn.idle::after { content: ''; position: absolute; inset: -7px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; animation: breathe 3s ease-in-out infinite; }
-  .record-btn.idle::after { animation-delay: 1.5s; }
-  .record-btn.active::before, .record-btn.active::after { content: ''; position: absolute; inset: -7px; border-radius: 50%; border: 2px solid #E07060; opacity: 0; animation: breathe 1.4s ease-in-out infinite; }
-  .record-btn.active::after { animation-delay: 0.7s; }
-  @keyframes breathe { 0%{transform:scale(0.9);opacity:0.5} 50%{transform:scale(1.2);opacity:0} 100%{transform:scale(1.4);opacity:0} }
-
-  /* Cards */
-  .card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 12px; box-shadow: var(--shadow-sm); animation: fadeUp 0.45s cubic-bezier(.2,.8,.2,1) both; }
-  .content > .card:nth-of-type(1) { animation-delay: 0.03s; } .content > .card:nth-of-type(2) { animation-delay: 0.08s; } .content > .card:nth-of-type(3) { animation-delay: 0.13s; } .content > .card:nth-of-type(4) { animation-delay: 0.18s; }
-  .card-title { font-size: 0.68rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
-  .checkin-card { background: linear-gradient(135deg, var(--accent-light), var(--warm-light)); border-color: var(--accent); }
-
-  /* Stats */
-  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-  .stat { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px 14px; box-shadow: var(--shadow-sm); animation: fadeUp 0.45s cubic-bezier(.2,.8,.2,1) both; }
-  .stat:nth-child(1) { animation-delay: 0.02s; } .stat:nth-child(2) { animation-delay: 0.06s; } .stat:nth-child(3) { animation-delay: 0.1s; } .stat:nth-child(4) { animation-delay: 0.14s; }
-  .stat-val { font-family: var(--font-display); font-size: 2.15rem; font-weight: 640; color: var(--accent); line-height: 1; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
-  .stat-val.success { color: var(--success); } .stat-val.danger { color: var(--danger); } .stat-val.warm { color: var(--warm); }
-  .stat-label { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); margin-top: 4px; }
-
-  /* Tags */
-  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
-  .tag { display: inline-flex; align-items: center; gap: 4px; padding: 8px 13px; min-height: 36px; border-radius: 100px; font-size: 0.76rem; font-weight: 700; border: 1.5px solid transparent; cursor: pointer; transition: all 0.15s; user-select: none; -webkit-tap-highlight-color: transparent; }
-  .tag:active { transform: scale(0.94); }
-  .tag.off { opacity: 0.38; } .tag.readonly { cursor: default; opacity: 1; }
-  .tag-inline-btn { background: none; border: none; color: inherit; opacity: 0.6; cursor: pointer; display: inline-flex; padding: 2px; margin-left: 1px; border-radius: 4px; transition: opacity 0.15s; }
-  .tag-inline-btn:hover { opacity: 1; }
-  .tag-inline-btn svg { width: 13px; height: 13px; }
-
-  /* Journal */
-  .entry { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; box-shadow: var(--shadow-sm); transition: box-shadow 0.2s, transform 0.2s; animation: fadeUp 0.4s cubic-bezier(.2,.8,.2,1) both; }
-  .entry:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
-  .entry-behavior { display: inline-flex; background: var(--accent-light); color: var(--accent-deep); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; padding: 3px 10px; border-radius: 100px; margin-bottom: 8px; }
-  .app.dark .entry-behavior { color: var(--accent); }
-  .entry-transcript { font-size: 0.9rem; color: var(--text); line-height: 1.55; margin-bottom: 10px; font-style: italic; font-weight: 500; }
-  .entry-replacement { font-size: 0.78rem; color: var(--success); font-weight: 700; margin-bottom: 8px; }
-  .entry-footer { display: flex; align-items: center; justify-content: space-between; }
-  .entry-date { font-size: 0.7rem; color: var(--text-dim); font-weight: 600; }
-  .entry-delete { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 10px; margin: -6px; border-radius: 8px; transition: color 0.15s; display: flex; }
-  .entry-delete:hover { color: var(--danger); }
-  .day-label { font-size: 0.7rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; padding: 12px 0 6px; }
-
-  /* Savings */
-  .savings-card { background: linear-gradient(135deg, var(--accent-light), var(--warm-light)); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 22px 20px; text-align: center; margin-bottom: 12px; box-shadow: var(--shadow-sm); animation: fadeUp 0.45s 0.1s cubic-bezier(.2,.8,.2,1) both; }
-  .savings-amount { font-family: var(--font-display); font-size: 3rem; font-weight: 620; color: var(--success); letter-spacing: -1.5px; line-height: 1; }
-  .savings-label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-top: 6px; }
-
-  /* Bars */
-  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-  .bar-label { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); width: 100px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .bar-track { flex: 1; height: 8px; background: var(--surface2); border-radius: 100px; overflow: hidden; }
-  .bar-fill { height: 100%; border-radius: 100px; background: var(--accent); transition: width 0.5s cubic-bezier(.4,0,.2,1); }
-  .bar-count { font-size: 0.72rem; font-weight: 700; color: var(--text-dim); width: 24px; text-align: right; }
-
-  /* Filters */
-  .filter-bar { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
-  .filter-bar::-webkit-scrollbar { display: none; }
-  .chip { white-space: nowrap; padding: 9px 16px; min-height: 38px; display: inline-flex; align-items: center; border-radius: 100px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-muted); font-family: 'Manrope', sans-serif; font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: all 0.15s; box-shadow: var(--shadow-sm); -webkit-tap-highlight-color: transparent; }
-  .chip:active { transform: scale(0.95); }
-  .chip.on { background: var(--accent-light); border-color: var(--accent); color: var(--accent-deep); box-shadow: var(--shadow-accent); }
-  .app.dark .chip.on { color: var(--accent); }
-
-  /* Behaviors */
-  .behavior-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--surface2); border-radius: var(--radius-sm); margin-bottom: 8px; border: 1.5px solid var(--border); }
-  .behavior-name { font-size: 0.88rem; font-weight: 700; }
-  .behavior-cost { font-size: 0.75rem; font-weight: 600; color: var(--warm); margin-top: 2px; }
-
-  /* Modals */
-  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: flex-end; z-index: 200; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-  .modal { background: var(--surface); border: 1.5px solid var(--border); border-radius: 24px 24px 0 0; padding: 6px 18px calc(28px + env(safe-area-inset-bottom)); width: 100%; max-width: 480px; margin: 0 auto; max-height: 90dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; box-shadow: var(--shadow-lg); animation: sheet-up 0.28s cubic-bezier(.32,.72,.27,1); }
-  @keyframes sheet-up { from { transform: translateY(40px); opacity: 0.6; } to { transform: translateY(0); opacity: 1; } }
-  .modal-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 12px auto 20px; }
-  .modal-title { font-family: var(--font-display); font-size: 1.5rem; font-weight: 620; color: var(--text); margin-bottom: 18px; letter-spacing: -0.3px; }
-  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
-  .onb-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 18px; }
-  .onb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); transition: background 0.2s, transform 0.2s; }
-  .onb-dot.on { background: var(--accent); transform: scale(1.3); }
-  .onb-emoji { font-size: 3rem; text-align: center; margin-bottom: 14px; }
-  .onb-body { font-size: 0.88rem; color: var(--text-muted); font-weight: 500; line-height: 1.6; margin-bottom: 18px; }
-
-  /* Form */
-  .field { margin-bottom: 14px; }
-  .field label { display: block; font-size: 0.72rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 7px; }
-  .field input, .field select, .field textarea { width: 100%; background: var(--surface2); border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 13px 14px; color: var(--text); font-family: 'Manrope', sans-serif; font-size: 16px; font-weight: 600; outline: none; transition: border-color 0.2s, box-shadow 0.2s; min-height: 48px; }
-  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
-  .field textarea { resize: vertical; min-height: 80px; }
-  select option { background: var(--surface2); }
-
-  /* Buttons */
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 20px; min-height: 48px; border-radius: var(--radius-sm); border: none; cursor: pointer; font-family: 'Manrope', sans-serif; font-size: 0.92rem; font-weight: 800; transition: all 0.15s; -webkit-tap-highlight-color: transparent; }
-  .btn:active { transform: scale(0.97); }
-  .btn-primary { background: var(--accent); color: white; box-shadow: var(--shadow-accent); }
-  .btn-primary:hover { background: var(--accent-deep); }
-  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
-  .btn-ghost { background: var(--surface2); color: var(--text-muted); border: 1.5px solid var(--border); }
-  .btn-ghost:hover { border-color: var(--text-muted); color: var(--text); }
-  .btn-google { background: white; color: #444; border: 1.5px solid #DDD; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-  .btn-google:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
-  .app.dark .btn-google { background: var(--surface2); color: var(--text); border-color: var(--border); }
-  .btn-full { width: 100%; } .btn-sm { padding: 7px 14px; font-size: 0.8rem; }
-
-  /* Transcript */
-  .transcript-box { display: block; width: 100%; background: var(--surface2); border: 1.5px solid var(--accent); border-radius: var(--radius-sm); padding: 14px; font-size: 16px; font-weight: 600; font-family: 'Manrope', sans-serif; line-height: 1.6; min-height: 88px; color: var(--text); font-style: italic; margin-bottom: 14px; box-shadow: 0 0 0 3px var(--accent-light); resize: vertical; outline: none; }
-  .transcript-box::placeholder { color: var(--text-dim); font-style: italic; }
-  .rec-indicator { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 700; color: #D07060; margin-bottom: 12px; }
-  .rec-dot { width: 8px; height: 8px; border-radius: 50%; background: #D07060; animation: blink 1s infinite; }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
-
-  /* Lang */
-  .lang-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; margin-bottom: 14px; }
-  .lang-bar::-webkit-scrollbar { display: none; }
-  .lang-chip { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; padding: 9px 14px; min-height: 38px; border-radius: 100px; border: 1.5px solid var(--border); background: var(--surface2); color: var(--text-muted); font-family: 'Manrope', sans-serif; font-size: 0.73rem; font-weight: 700; cursor: pointer; transition: all 0.15s; }
-  .lang-chip.on { background: var(--accent-light); border-color: var(--accent); color: var(--accent-deep); }
-  .app.dark .lang-chip.on { color: var(--accent); }
-
-  /* Error / Success */
-  .error-msg { background: rgba(200,80,64,0.1); border: 1.5px solid rgba(200,80,64,0.3); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 0.82rem; font-weight: 600; color: var(--danger); margin-bottom: 12px; }
-  .divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--text-dim); font-size: 0.75rem; font-weight: 700; }
-  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-
-  /* Empty */
-  .empty { text-align: center; padding: 56px 20px; color: var(--text-dim); }
-  .empty-icon { font-size: 3rem; margin-bottom: 12px; }
-  .empty p { font-size: 0.88rem; font-weight: 600; line-height: 1.7; }
-
-  /* Auth screen */
-  .auth-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px 60px; position: relative; overflow: hidden; }
-  .auth-screen::before { content: ''; position: absolute; inset: 0; z-index: 0; background-image: radial-gradient(circle, var(--border) 1.5px, transparent 1.5px); background-size: 26px 26px; -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 0%, transparent 75%); mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 0%, transparent 75%); opacity: 0.9; pointer-events: none; }
-  .auth-screen > * { position: relative; z-index: 1; width: 100%; }
-  .auth-orb { width: 72px; height: 72px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, rgba(255,255,255,0.5) 0%, var(--accent) 30%, var(--accent-deep) 65%, rgba(0,0,0,0.15) 100%); box-shadow: 0 16px 48px var(--accent-ring), inset -4px -8px 16px rgba(0,0,0,0.18), inset 6px 5px 16px rgba(255,255,255,0.22); margin: 0 auto 20px; animation: orb-float 5s ease-in-out infinite; }
-  .auth-wordmark { font-family: var(--font-display); font-size: 3.1rem; line-height: 1; letter-spacing: -1.5px; margin-bottom: 6px; text-align: center; animation: fadeUp 0.5s cubic-bezier(.2,.8,.2,1) both; }
-  .auth-wordmark .be { font-weight: 340; font-style: italic; color: var(--text-muted); }
-  .auth-wordmark .have { font-weight: 680; color: var(--accent); }
-  .auth-tagline { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-align: center; margin-bottom: 28px; animation: fadeUp 0.5s 0.05s cubic-bezier(.2,.8,.2,1) both; }
-  .auth-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 24px 20px; box-shadow: var(--shadow-lg); animation: fadeUp 0.5s 0.1s cubic-bezier(.2,.8,.2,1) both; }
-  .auth-toggle { display: flex; justify-content: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: var(--text-muted); margin-top: 16px; text-align: center; }
-  .auth-toggle span { color: var(--accent); cursor: pointer; font-weight: 800; }
-  .auth-toggle span:hover { text-decoration: underline; }
-  @keyframes orb-float { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-8px) rotate(4deg)} }
-
-  /* Welcome */
-  .welcome { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 28px 60px; position: relative; overflow: hidden; }
-  .welcome::before { content: ''; position: absolute; inset: 0; z-index: 0; background-image: radial-gradient(circle, var(--border) 1.5px, transparent 1.5px); background-size: 26px 26px; -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 25%, black 0%, transparent 75%); mask-image: radial-gradient(ellipse 70% 60% at 50% 25%, black 0%, transparent 75%); opacity: 0.9; pointer-events: none; }
-  .welcome > * { position: relative; z-index: 1; }
-  .hero-orb { width: 96px; height: 96px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, rgba(255,255,255,0.5) 0%, var(--accent) 30%, var(--accent-deep) 65%, rgba(0,0,0,0.15) 100%); box-shadow: 0 20px 60px var(--accent-ring), inset -4px -8px 16px rgba(0,0,0,0.18), inset 8px 6px 20px rgba(255,255,255,0.22); margin-bottom: 28px; animation: orb-float 5s ease-in-out infinite; }
-  .hero-wordmark { font-family: var(--font-display); font-size: 4.4rem; line-height: 1; letter-spacing: -2.5px; margin-bottom: 12px; animation: fadeUp 0.55s cubic-bezier(.2,.8,.2,1) both; }
-  .hero-wordmark .be { font-weight: 340; font-style: italic; color: var(--text-muted); }
-  .hero-wordmark .have { font-weight: 680; color: var(--accent); }
-  .hero-tagline { font-size: 1.05rem; font-weight: 700; color: var(--text); margin-bottom: 8px; letter-spacing: -0.3px; }
-  .hero-sub { font-size: 0.88rem; font-weight: 500; color: var(--text-muted); line-height: 1.65; max-width: 280px; margin: 0 auto 24px; }
-  .hero-features { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 28px; }
-  .hero-feat { padding: 7px 14px; border-radius: 100px; background: var(--surface); border: 1.5px solid var(--border); font-size: 0.78rem; font-weight: 700; color: var(--text-muted); box-shadow: var(--shadow-sm); }
-`;
 
 // ── Auth Screen ────────────────────────────────────────────────────────────────
-function AuthScreen({ t }) {
+function AuthScreen({ t, uiLang, onLegal }) {
   const [mode, setMode]         = useState('login');
   const [name, setName]         = useState('');
   const [email, setEmail]       = useState('');
@@ -464,7 +215,7 @@ function AuthScreen({ t }) {
     'auth/weak-password': 'authWeakPw', 'auth/invalid-email': 'authInvalidEmail',
     'auth/popup-closed-by-user': 'authPopupClosed', 'auth/popup-blocked': 'authPopupBlocked',
   };
-  const authErr = (err) => t[AUTH_ERR_KEYS[err.code]] || err.message;
+  const authErr = (err) => t[AUTH_ERR_KEYS[err.code]] || t.toastError;
 
   async function handleEmail(e) {
     e.preventDefault();
@@ -476,7 +227,7 @@ function AuthScreen({ t }) {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const displayName = name.trim() || email.split('@')[0];
         await updateProfile(cred.user, { displayName });
-        await setDoc(doc(db, 'users', cred.user.uid), { name: displayName, createdAt: serverTimestamp() });
+        await setDoc(doc(db, 'users', cred.user.uid), { name: displayName, currency: uiLang === 'es' ? 'EUR' : 'CAD', createdAt: serverTimestamp() });
       }
     } catch (err) {
       setError(authErr(err));
@@ -488,7 +239,7 @@ function AuthScreen({ t }) {
     try {
       const provider = new GoogleAuthProvider();
       const cred = await signInWithPopup(auth, provider);
-      await setDoc(doc(db, 'users', cred.user.uid), { name: cred.user.displayName || 'User', createdAt: serverTimestamp() }, { merge: true });
+      await setDoc(doc(db, 'users', cred.user.uid), { name: cred.user.displayName || 'User', currency: uiLang === 'es' ? 'EUR' : 'CAD', createdAt: serverTimestamp() }, { merge: true });
     } catch (err) {
       setError(authErr(err));
     } finally { setLoading(false); }
@@ -521,7 +272,7 @@ function AuthScreen({ t }) {
           </div>
           <div className="field" style={{ marginBottom: 20 }}>
             <label>{t.password}</label>
-            <input type="password" placeholder={mode === 'signup' ? t.passwordPhSignup : '••••••••'} value={password} onChange={e => setPassword(e.target.value)} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'}/>
+            <input type="password" placeholder={mode === 'signup' ? t.passwordPhSignup : t.passwordPlaceholder} value={password} onChange={e => setPassword(e.target.value)} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'}/>
           </div>
           <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
             {loading ? '…' : mode === 'login' ? t.signIn : t.createAccount}
@@ -532,13 +283,20 @@ function AuthScreen({ t }) {
       <div className="auth-toggle">
         {mode === 'login' ? <>{t.noAccount}&nbsp;<span onClick={() => { setMode('signup'); setError(''); }}>{t.createOne}</span></> : <>{t.haveAccount}&nbsp;<span onClick={() => { setMode('login'); setError(''); }}>{t.signInLink}</span></>}
       </div>
+      <div className="legal-links">
+        {t.legalAgreement}. <button onClick={() => onLegal('terms')}>{t.terms}</button> · <button onClick={() => onLegal('privacy')}>{t.privacy}</button>
+      </div>
     </div>
   );
 }
 
 // ── Main App ───────────────────────────────────────────────────────────────────
 export default function App() {
-  const [dark,      setDark]      = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false);
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('behave_theme') || 'system');
+  const [dark, setDark] = useState(() => {
+    const saved = localStorage.getItem('behave_theme');
+    return saved === 'dark' || (saved !== 'light' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+  });
   const [uiLang,    setUiLang]    = useState(() => localStorage.getItem('behave_uilang') || detectUILang());
   const [user,      setUser]      = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -576,13 +334,25 @@ export default function App() {
   const [forceOnboarding, setForceOnboarding] = useState(false);
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [showLegal, setShowLegal] = useState(null);
+  const [deleteWord, setDeleteWord] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteNeedsReauth, setDeleteNeedsReauth] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const { toast } = useToast();
   const recRef = useRef(null);
+  const latestRef = useRef({ toast, t: null });
 
   // ── Auth listener ────────────────────────────────────────────────────────
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
+    const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); }, err => {
+      console.error('Auth listener failed:', err);
+      setAuthReady(true);
+      toast(STRINGS[uiLang].toastError, 'error');
+    });
     return unsub;
-  }, []);
+  }, [toast, uiLang]);
 
   // ── Firestore listeners ──────────────────────────────────────────────────
   useEffect(() => {
@@ -591,12 +361,16 @@ export default function App() {
     const eRef = query(collection(db, 'users', user.uid, 'entries'), orderBy('timestamp', 'desc'));
     const tRef = collection(db, 'users', user.uid, 'tags');
     const uRef = doc(db, 'users', user.uid);
-    const unsubB = onSnapshot(bRef, snap => setBehaviors(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubE = onSnapshot(eRef, snap => setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubT = onSnapshot(tRef, snap => { setTags(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setTagsLoaded(true); });
-    const unsubU = onSnapshot(uRef, snap => { setUserProfile(snap.exists() ? snap.data() : {}); setProfileLoaded(true); });
+    const onListenerError = (name, err) => {
+      console.error(`${name} listener failed:`, err);
+      toast(STRINGS[uiLang].toastError, 'error');
+    };
+    const unsubB = onSnapshot(bRef, snap => setBehaviors(snap.docs.map(d => ({ id: d.id, ...d.data() }))), err => onListenerError('Behavior', err));
+    const unsubE = onSnapshot(eRef, snap => setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() }))), err => onListenerError('Entry', err));
+    const unsubT = onSnapshot(tRef, snap => { setTags(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setTagsLoaded(true); }, err => onListenerError('Tag', err));
+    const unsubU = onSnapshot(uRef, snap => { setUserProfile(snap.exists() ? snap.data() : {}); setProfileLoaded(true); }, err => onListenerError('Profile', err));
     return () => { unsubB(); unsubE(); unsubT(); unsubU(); };
-  }, [user?.uid]);
+  }, [toast, uiLang, user?.uid]);
 
   // ── Seed default tags once, for accounts that skip onboarding without picking any ──
   useEffect(() => {
@@ -612,16 +386,38 @@ export default function App() {
         await setDoc(uRef, { tagsSeeded: true }, { merge: true });
       } catch (err) {
         console.error('Tag seeding failed:', err);
+        toast(t.toastError, 'error');
       }
     })();
-  }, [user, tagsLoaded, tags.length, profileLoaded, userProfile?.onboarded]);
+  }, [toast, uiLang, user, tagsLoaded, tags.length, profileLoaded, userProfile?.onboarded]);
 
   // ── Dark mode ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    localStorage.setItem('behave_theme', themeMode);
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)');
+    const apply = () => setDark(themeMode === 'dark' || (themeMode === 'system' && !!media?.matches));
+    apply();
+    if (themeMode !== 'system' || !media) return undefined;
+    media.addEventListener?.('change', apply);
+    return () => media.removeEventListener?.('change', apply);
+  }, [themeMode]);
   useEffect(() => { document.body.style.background = dark ? '#0F1512' : '#F6F1E7'; }, [dark]);
 
   // ── i18n ──────────────────────────────────────────────────────────────────
   const t = STRINGS[uiLang];
   const locale = LOCALE[uiLang];
+  const currency = userProfile?.currency || (uiLang === 'es' ? 'EUR' : 'CAD');
+  const currencies = ['CAD', 'USD', 'EUR', 'GBP', 'CHF', 'AUD', 'MXN', 'BRL'];
+  latestRef.current = { toast, t };
+  useEffect(() => {
+    registerSW({
+      immediate: true,
+      onNeedRefresh: () => {
+        const { toast: showToast, t: latestStrings } = latestRef.current;
+        showToast(`${latestStrings.updateAvailable} — ${latestStrings.reloadToUpdate}`, 'info');
+      },
+    });
+  }, []);
   useEffect(() => { localStorage.setItem('behave_uilang', uiLang); document.documentElement.lang = uiLang; }, [uiLang]);
   useEffect(() => { localStorage.setItem('behave_voicelang', recLang); }, [recLang]);
   const TAG_MAP = Object.fromEntries(tags.map(tg => [tg.id, tg]));
@@ -656,7 +452,7 @@ export default function App() {
     setForceOnboarding(false);
     resetOnboardingForm();
     try { await setDoc(doc(db, 'users', user.uid), { onboarded: true }, { merge: true }); }
-    catch (err) { console.error('Onboarding skip failed:', err); }
+    catch (err) { console.error('Onboarding skip failed:', err); toast(t.toastError, 'error'); }
   }
   async function finishOnboarding() {
     if (!user) return;
@@ -695,6 +491,7 @@ export default function App() {
       resetOnboardingForm();
     } catch (err) {
       console.error('Onboarding save failed:', err);
+      toast(t.toastError, 'error');
     } finally {
       setOnbSaving(false);
     }
@@ -707,16 +504,28 @@ export default function App() {
   async function saveBehavior() {
     if (!newBForm.label.trim() || !user) return;
     const data = { label: newBForm.label.trim(), cost: parseFloat(newBForm.cost) || 0 };
-    if (editingBehaviorId) {
-      await updateDoc(doc(db, 'users', user.uid, 'behaviors', editingBehaviorId), data);
-    } else {
-      await addDoc(collection(db, 'users', user.uid, 'behaviors'), { ...data, createdAt: serverTimestamp() });
+    try {
+      if (editingBehaviorId) {
+        await updateDoc(doc(db, 'users', user.uid, 'behaviors', editingBehaviorId), data);
+      } else {
+        await addDoc(collection(db, 'users', user.uid, 'behaviors'), { ...data, createdAt: serverTimestamp() });
+      }
+      closeNewBehavior();
+      toast(t.saved, 'success');
+    } catch (err) {
+      console.error('Behavior save failed:', err);
+      toast(t.toastError, 'error');
     }
-    closeNewBehavior();
   }
   async function delBehavior(id) {
     if (!user) return;
-    await deleteDoc(doc(db, 'users', user.uid, 'behaviors', id));
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'behaviors', id));
+      toast(t.deleted, 'success');
+    } catch (err) {
+      console.error('Behavior delete failed:', err);
+      toast(t.toastError, 'error');
+    }
   }
 
   // ── Tags ──────────────────────────────────────────────────────────────────
@@ -726,16 +535,28 @@ export default function App() {
   async function saveTag() {
     if (!newTagForm.label.trim() || !user) return;
     const data = { label: newTagForm.label.trim(), emoji: newTagForm.emoji.trim() || '🏷️', color: newTagForm.color };
-    if (editingTagId) {
-      await updateDoc(doc(db, 'users', user.uid, 'tags', editingTagId), data);
-    } else {
-      await addDoc(collection(db, 'users', user.uid, 'tags'), { ...data, createdAt: serverTimestamp() });
+    try {
+      if (editingTagId) {
+        await updateDoc(doc(db, 'users', user.uid, 'tags', editingTagId), data);
+      } else {
+        await addDoc(collection(db, 'users', user.uid, 'tags'), { ...data, createdAt: serverTimestamp() });
+      }
+      closeNewTag();
+      toast(t.saved, 'success');
+    } catch (err) {
+      console.error('Tag save failed:', err);
+      toast(t.toastError, 'error');
     }
-    closeNewTag();
   }
   async function delTag(id) {
     if (!user) return;
-    await deleteDoc(doc(db, 'users', user.uid, 'tags', id));
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'tags', id));
+      toast(t.deleted, 'success');
+    } catch (err) {
+      console.error('Tag delete failed:', err);
+      toast(t.toastError, 'error');
+    }
   }
 
   // ── Recording ─────────────────────────────────────────────────────────────
@@ -768,31 +589,179 @@ export default function App() {
       behaviorId: entryForm.behaviorId, transcript: transcript.trim(),
       tags: entryForm.tags, replacement: entryForm.replacement, note: entryForm.note,
     };
-    if (editingEntryId) {
-      await updateDoc(doc(db, 'users', user.uid, 'entries', editingEntryId), data);
-    } else {
-      await addDoc(collection(db, 'users', user.uid, 'entries'), { ...data, timestamp: Date.now(), createdAt: serverTimestamp() });
+    try {
+      if (editingEntryId) {
+        await updateDoc(doc(db, 'users', user.uid, 'entries', editingEntryId), data);
+      } else {
+        await addDoc(collection(db, 'users', user.uid, 'entries'), { ...data, timestamp: Date.now(), createdAt: serverTimestamp() });
+      }
+      closeEntry();
+      toast(t.saved, 'success');
+    } catch (err) {
+      console.error('Entry save failed:', err);
+      toast(t.toastError, 'error');
     }
-    closeEntry();
   }
   async function delEntry(id) {
     if (!user) return;
-    await deleteDoc(doc(db, 'users', user.uid, 'entries', id));
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'entries', id));
+      toast(t.deleted, 'success');
+    } catch (err) {
+      console.error('Entry delete failed:', err);
+      toast(t.toastError, 'error');
+    }
   }
   async function quickLog() {
     if (checkinTags.length === 0 || !user) return;
-    await addDoc(collection(db, 'users', user.uid, 'entries'), {
-      behaviorId: checkinBehavior || null, timestamp: Date.now(),
-      transcript: '', tags: checkinTags, replacement: '', note: '',
-      type: 'checkin', createdAt: serverTimestamp(),
-    });
-    setCheckinTags([]); setCheckinBehavior('');
-    setCheckinSaved(true);
-    setTimeout(() => setCheckinSaved(false), 2000);
+    try {
+      await addDoc(collection(db, 'users', user.uid, 'entries'), {
+        behaviorId: checkinBehavior || null, timestamp: Date.now(),
+        transcript: '', tags: checkinTags, replacement: '', note: '',
+        type: 'checkin', createdAt: serverTimestamp(),
+      });
+      setCheckinTags([]); setCheckinBehavior('');
+      setCheckinSaved(true);
+      setTimeout(() => setCheckinSaved(false), 2000);
+      toast(t.saved, 'success');
+    } catch (err) {
+      console.error('Quick log failed:', err);
+      toast(t.toastError, 'error');
+    }
+  }
+  const requestConfirmation = (kind, id) => setConfirmAction({ kind, id });
+  async function deleteAccountData(allowReauth = true) {
+    if (!user) return;
+    setDeletingAccount(true);
+    try {
+      for (const name of ['behaviors', 'tags', 'entries']) {
+        const snap = await getDocs(collection(db, 'users', user.uid, name));
+        for (let i = 0; i < snap.docs.length; i += 400) {
+          const batch = writeBatch(db);
+          snap.docs.slice(i, i + 400).forEach(item => batch.delete(item.ref));
+          await batch.commit();
+        }
+      }
+      await deleteDoc(doc(db, 'users', user.uid));
+      await deleteUser(auth.currentUser);
+      resetDeleteAccount();
+      toast(t.accountDeleted, 'success');
+    } catch (err) {
+      if (err.code === 'auth/requires-recent-login') {
+        if (!allowReauth) {
+          console.error('Account deletion still requires recent login after reauthentication:', err);
+          toast(t.toastError, 'error');
+          return;
+        }
+        const providerIds = auth.currentUser?.providerData?.map(provider => provider.providerId) || [];
+        if (providerIds.includes('google.com')) {
+          try {
+            await reauthenticateWithPopup(auth.currentUser, new GoogleAuthProvider());
+            await deleteAccountData(false);
+          } catch (reauthError) {
+            console.error('Google reauthentication failed:', reauthError);
+            toast(t.toastError, 'error');
+          }
+        } else {
+          setDeleteNeedsReauth(true);
+          toast(t.reauthPassword, 'info');
+        }
+      } else {
+        console.error('Account deletion failed:', err);
+        toast(t.toastError, 'error');
+      }
+    } finally {
+      setDeletingAccount(false);
+    }
+  }
+  async function confirmAccountDeletion() {
+    if (deleteWord !== t.deleteConfirmWord || !user) return;
+    setDeletingAccount(true);
+    try {
+      const providerIds = auth.currentUser?.providerData?.map(provider => provider.providerId) || [];
+      if (providerIds.includes('google.com')) {
+        await reauthenticateWithPopup(auth.currentUser, new GoogleAuthProvider());
+      } else if (providerIds.includes('password')) {
+        await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, deletePassword));
+        setDeleteNeedsReauth(false);
+      }
+      await deleteAccountData(false);
+    } catch (err) {
+      console.error('Account reauthentication failed:', err);
+      toast(t.toastError, 'error');
+    } finally {
+      setDeletingAccount(false);
+    }
+  }
+  function resetDeleteAccount() {
+    setConfirmAction(null);
+    setDeleteWord('');
+    setDeletePassword('');
+    setDeleteNeedsReauth(false);
+  }
+  function downloadFile(content, type, filename) {
+    const url = URL.createObjectURL(new Blob([content], { type }));
+    const link = document.createElement('a');
+    link.href = url; link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast(t.exported, 'success');
+  }
+  function exportJson() {
+    const payload = {
+      exportedAt: new Date().toISOString(), version: 1,
+      profile: userProfile || {}, behaviors, tags, entries,
+    };
+    downloadFile(JSON.stringify(payload, null, 2), 'application/json', `behave-export-${new Date().toISOString().slice(0, 10)}.json`);
+  }
+  function csvField(value) {
+    const text = value == null ? '' : String(value);
+    return /[,"\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  }
+  function exportCsv() {
+    const rows = [['timestamp ISO', 'behavior label', 'transcript', 'replacement', 'note', 'tags joined by ;', 'type']];
+    entries.forEach(entry => rows.push([
+      new Date(entry.timestamp).toISOString(),
+      behaviors.find(item => item.id === entry.behaviorId)?.label || '',
+      entry.transcript || '', entry.replacement || '', entry.note || '',
+      (entry.tags || []).map(id => TAG_MAP[id]?.label || id).join(';'), entry.type || '',
+    ]));
+    downloadFile(rows.map(row => row.map(csvField).join(',')).join('\n'), 'text/csv;charset=utf-8', `behave-export-${new Date().toISOString().slice(0, 10)}.csv`);
+  }
+  async function signOutUser() {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error('Sign out failed:', err);
+      toast(t.toastError, 'error');
+    }
+  }
+  async function saveCurrency(nextCurrency) {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'users', user.uid), { currency: nextCurrency }, { merge: true });
+      toast(t.saved, 'success');
+    } catch (err) {
+      console.error('Currency save failed:', err);
+      toast(t.toastError, 'error');
+    }
+  }
+  function openDeleteAccount() {
+    const providerIds = auth.currentUser?.providerData?.map(provider => provider.providerId) || [];
+    setDeleteWord('');
+    setDeletePassword('');
+    setDeleteNeedsReauth(!providerIds.includes('google.com') && providerIds.includes('password'));
+    setConfirmAction({ kind: 'account' });
   }
   const toggleCheckinTag = id => setCheckinTags(p => p.includes(id) ? p.filter(t => t !== id) : [...p, id]);
   const toggleTag = id => setEntryForm(p => ({ ...p, tags: p.tags.includes(id) ? p.tags.filter(t => t !== id) : [...p.tags, id] }));
   const closeEntry = () => { setShowEntry(false); stopRec(); setTranscript(''); setEntryForm({ behaviorId: '', tags: [], replacement: '', note: '' }); setEditingEntryId(null); };
+  const entryModalRef = useModalA11y(showEntry, closeEntry);
+  const behaviorModalRef = useModalA11y(showNewB, () => setShowNewB(false));
+  const tagModalRef = useModalA11y(showNewTag, () => setShowNewTag(false));
+  const onboardingModalRef = useModalA11y(showOnboarding, () => setForceOnboarding(false));
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = (() => {
@@ -873,7 +842,7 @@ export default function App() {
                     <span className="entry-date">{formatDate(entry.timestamp, locale)}</span>
                     <div style={{ display: 'flex' }}>
                       <button className="entry-delete" onClick={() => openEditEntry(entry)}><PencilIcon/></button>
-                      <button className="entry-delete" onClick={() => delEntry(entry.id)}><TrashIcon/></button>
+                      <button className="entry-delete" onClick={() => requestConfirmation('entry', entry.id)} aria-label={t.deleteLabel}><TrashIcon/></button>
                     </div>
                   </div>
                 </div>
@@ -912,12 +881,12 @@ export default function App() {
           <div className="stat"><div className="stat-val">{s.total}</div><div className="stat-label">{t.totalEntries}</div></div>
           <div className="stat"><div className={`stat-val ${s.trend < 0 ? 'success' : s.trend > 0 ? 'danger' : ''}`}>{s.last7}{s.trend < 0 ? ' ↓' : s.trend > 0 ? ' ↑' : ''}</div><div className="stat-label">{t.thisWeek}</div></div>
           <div className="stat"><div className="stat-val success">{s.total ? Math.round((s.replaced / s.total) * 100) : 0}%</div><div className="stat-label">{t.replaced}</div></div>
-          <div className="stat"><div className="stat-val warm">{formatMoney(s.totalCost, locale)}</div><div className="stat-label">{t.estCost}</div></div>
+          <div className="stat"><div className="stat-val warm">{formatMoney(s.totalCost, locale, currency)}</div><div className="stat-label">{t.estCost}</div></div>
         </div>
         {s.savedCost > 0 && (
           <div className="savings-card">
             <div style={{ fontSize: '2rem', marginBottom: 8 }}>🌱</div>
-            <div className="savings-amount">{formatMoney(s.savedCost, locale)}</div>
+            <div className="savings-amount">{formatMoney(s.savedCost, locale, currency)}</div>
             <div className="savings-label">{t.savedBy(s.replaced)}</div>
           </div>
         )}
@@ -945,10 +914,10 @@ export default function App() {
         {behaviors.length === 0 && <p style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 14 }}>{t.noBehaviors}</p>}
         {behaviors.map(b => (
           <div key={b.id} className="behavior-item">
-            <div><div className="behavior-name">{b.label}</div><div className="behavior-cost">{b.cost > 0 ? `${formatMoney(b.cost, locale)} ${t.perOccurrence}` : t.noCost}</div></div>
+            <div><div className="behavior-name">{b.label}</div><div className="behavior-cost">{b.cost > 0 ? `${formatMoney(b.cost, locale, currency)} ${t.perOccurrence}` : t.noCost}</div></div>
             <div style={{ display: 'flex' }}>
               <button className="entry-delete" onClick={() => openEditBehavior(b)}><PencilIcon/></button>
-              <button className="entry-delete" onClick={() => delBehavior(b.id)}><TrashIcon/></button>
+              <button className="entry-delete" onClick={() => requestConfirmation('behavior', b.id)} aria-label={t.deleteLabel}><TrashIcon/></button>
             </div>
           </div>
         ))}
@@ -962,7 +931,7 @@ export default function App() {
             <span key={tg.id} className="tag readonly" style={{ background: tg.color + '20', borderColor: tg.color + '55', color: tg.color }}>
               {tg.emoji} {tg.label}
               <button className="tag-inline-btn" onClick={() => openEditTag(tg)}><PencilIcon/></button>
-              <button className="tag-inline-btn" onClick={() => delTag(tg.id)}><TrashIcon/></button>
+              <button className="tag-inline-btn" onClick={() => requestConfirmation('tag', tg.id)} aria-label={t.deleteLabel}><TrashIcon/></button>
             </span>
           ))}
         </div>
@@ -979,6 +948,30 @@ export default function App() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {LANGS.map(l => <div key={l.code} className={`lang-chip ${recLang === l.code ? 'on' : ''}`} onClick={() => setRecLang(l.code)}>{l.flag} {l.label}</div>)}
         </div>
+      </div>
+      <div className="card">
+        <div className="card-title">{t.currency}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {currencies.map(code => <button key={code} className={`lang-chip ${currency === code ? 'on' : ''}`} onClick={() => saveCurrency(code)}>{code}</button>)}
+        </div>
+      </div>
+      <div className="card">
+        <div className="card-title">{t.data}</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={exportJson}>{t.exportJson}</button>
+          <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={exportCsv}>{t.exportCsv}</button>
+        </div>
+      </div>
+      <div className="card">
+        <div className="card-title">{t.legal}</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => setShowLegal('terms')}>{t.terms}</button>
+          <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => setShowLegal('privacy')}>{t.privacy}</button>
+        </div>
+      </div>
+      <div className="card danger-card">
+        <div className="card-title">{t.dangerZone}</div>
+        <button className="btn btn-danger btn-full" onClick={openDeleteAccount}>{t.deleteAccount}</button>
       </div>
       <div className="card">
         <button className="btn btn-ghost btn-full" onClick={replayOnboarding}>🌱 {t.onboarding.replay}</button>
@@ -1005,8 +998,8 @@ export default function App() {
             <div className="logo-sub">{t.tagline}</div>
           </div>
           <div className="header-actions">
-            <button className="icon-btn" onClick={() => { const i = UI_LANGS.findIndex(l => l.code === uiLang); setUiLang(UI_LANGS[(i + 1) % UI_LANGS.length].code); }} title="Language" style={{ fontSize: '0.7rem', fontWeight: 800 }}>{uiLang.toUpperCase()}</button>
-            <button className="icon-btn" onClick={() => setDark(d => !d)} title="Toggle theme">{dark ? <SunIcon/> : <MoonIcon/>}</button>
+            <button className="icon-btn" onClick={() => { const i = UI_LANGS.findIndex(l => l.code === uiLang); setUiLang(UI_LANGS[(i + 1) % UI_LANGS.length].code); }} title={t.language} style={{ fontSize: '0.7rem', fontWeight: 800 }}>{uiLang.toUpperCase()}</button>
+            <button className="icon-btn" onClick={() => setThemeMode(dark ? 'light' : 'dark')} title={t.toggleTheme}>{dark ? <SunIcon/> : <MoonIcon/>}</button>
             {user && (
               <>
                 <div className="user-pill">
@@ -1019,7 +1012,7 @@ export default function App() {
         </div>
 
         {/* Not authenticated → auth screen */}
-        {!user && <AuthScreen t={t}/>}
+        {!user && <AuthScreen t={t} uiLang={uiLang} onLegal={setShowLegal}/>}
 
         {/* Authenticated → app */}
         {user && (
@@ -1038,7 +1031,7 @@ export default function App() {
                 </button>
               </div>
               <button className={`tab ${view === 'settings' ? 'on' : ''}`} onClick={() => setView('settings')}><GearIcon/>{t.manage}</button>
-              <button className="tab" onClick={() => signOut(auth)}><LogoutIcon/>{t.signOut.split(' ')[0]}</button>
+              <button className="tab" onClick={signOutUser}><LogoutIcon/>{t.signOut.split(' ')[0]}</button>
             </nav>
           </>
         )}
@@ -1046,9 +1039,9 @@ export default function App() {
         {/* Entry modal */}
         {showEntry && (
           <div className="overlay">
-            <div className="modal">
+            <div ref={entryModalRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="entry-modal-title">
               <div className="modal-handle"/>
-              <div className="modal-title">{editingEntryId ? t.editEntryTitle : t.newEntry}</div>
+              <div id="entry-modal-title" className="modal-title">{editingEntryId ? t.editEntryTitle : t.newEntry}</div>
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>{t.voiceLangLabel}</div>
                 <div className="lang-bar">{LANGS.map(l => <div key={l.code} className={`lang-chip ${recLang === l.code ? 'on' : ''}`} onClick={() => { setRecLang(l.code); if (recording) stopRec(); }}>{l.flag} {l.code.split('-')[0].toUpperCase()}</div>)}</div>
@@ -1103,11 +1096,11 @@ export default function App() {
         {/* New/edit behavior modal */}
         {showNewB && (
           <div className="overlay" onClick={closeNewBehavior}>
-            <div className="modal" onClick={e => e.stopPropagation()}>
+            <div ref={behaviorModalRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="behavior-modal-title" onClick={e => e.stopPropagation()}>
               <div className="modal-handle"/>
-              <div className="modal-title">{editingBehaviorId ? t.editBehavior : t.newBehavior}</div>
+              <div id="behavior-modal-title" className="modal-title">{editingBehaviorId ? t.editBehavior : t.newBehavior}</div>
               <div className="field"><label>{t.bNameLabel} *</label><input type="text" placeholder={t.bNamePh} value={newBForm.label} onChange={e => setNewBForm(p => ({ ...p, label: e.target.value }))}/></div>
-              <div className="field"><label>{t.bCostLabel}</label><input type="number" min="0" step="0.01" placeholder={t.bCostPh} value={newBForm.cost} onChange={e => setNewBForm(p => ({ ...p, cost: e.target.value }))}/></div>
+              <div className="field"><label>{t.bCostLabel(currency)}</label><input type="number" min="0" step="0.01" placeholder={t.bCostPh} value={newBForm.cost} onChange={e => setNewBForm(p => ({ ...p, cost: e.target.value }))}/></div>
               <div className="modal-actions">
                 <button className="btn btn-ghost" style={{ flex: 1 }} onClick={closeNewBehavior}>{t.cancel}</button>
                 <button className="btn btn-primary" style={{ flex: 2 }} onClick={saveBehavior} disabled={!newBForm.label.trim()}>{editingBehaviorId ? t.updateBehaviorBtn : t.addBehaviorBtn}</button>
@@ -1119,9 +1112,9 @@ export default function App() {
         {/* New/edit tag modal */}
         {showNewTag && (
           <div className="overlay" onClick={closeNewTag}>
-            <div className="modal" onClick={e => e.stopPropagation()}>
+            <div ref={tagModalRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="tag-modal-title" onClick={e => e.stopPropagation()}>
               <div className="modal-handle"/>
-              <div className="modal-title">{editingTagId ? t.editTag : t.newTag}</div>
+              <div id="tag-modal-title" className="modal-title">{editingTagId ? t.editTag : t.newTag}</div>
               <div className="field"><label>{t.tagNameLabel} *</label><input type="text" placeholder={t.tagNamePh} value={newTagForm.label} onChange={e => setNewTagForm(p => ({ ...p, label: e.target.value }))}/></div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <div className="field" style={{ flex: 1 }}><label>{t.tagEmojiLabel}</label><input type="text" maxLength={4} value={newTagForm.emoji} onChange={e => setNewTagForm(p => ({ ...p, emoji: e.target.value }))}/></div>
@@ -1138,7 +1131,7 @@ export default function App() {
         {/* First-login onboarding: suggest behaviors & replacement tags */}
         {showOnboarding && (
           <div className="overlay">
-            <div className="modal">
+            <div ref={onboardingModalRef} className="modal" role="dialog" aria-modal="true" aria-label={t.onboarding.step1Title}>
               <div className="modal-handle"/>
               <div className="onb-dots">
                 {[1, 2, 3, 4].map(n => <div key={n} className={`onb-dot ${onbStep === n ? 'on' : ''}`}/>)}
@@ -1146,7 +1139,7 @@ export default function App() {
               {onbStep === 1 && (
                 <>
                   <div className="onb-emoji">🌱</div>
-                  <div className="modal-title" style={{ textAlign: 'center' }}>{t.onboarding.step1Title}</div>
+                  <div id="onboarding-modal-title" className="modal-title" style={{ textAlign: 'center' }}>{t.onboarding.step1Title}</div>
                   <p className="onb-body" style={{ textAlign: 'center' }}>{t.onboarding.step1Body}</p>
                   <div className="modal-actions">
                     <button className="btn btn-ghost" style={{ flex: 1 }} onClick={skipOnboarding}>{t.onboarding.skip}</button>
@@ -1223,6 +1216,45 @@ export default function App() {
             </div>
           </div>
         )}
+        <ConfirmSheet
+          open={!!confirmAction && confirmAction.kind !== 'account'}
+          title={confirmAction?.kind === 'entry' ? t.deleteEntryTitle : confirmAction?.kind === 'behavior' ? t.deleteBehaviorTitle : t.deleteTagTitle}
+          body={confirmAction?.kind === 'entry' ? t.deleteEntryBody : confirmAction?.kind === 'behavior' ? t.deleteBehaviorBody : t.deleteTagBody}
+          confirmLabel={t.deleteLabel}
+          cancelLabel={t.cancel}
+          danger
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={async () => {
+            const action = confirmAction;
+            setConfirmAction(null);
+            if (action?.kind === 'entry') await delEntry(action.id);
+            if (action?.kind === 'behavior') await delBehavior(action.id);
+            if (action?.kind === 'tag') await delTag(action.id);
+          }}
+        />
+        <ConfirmSheet
+          open={confirmAction?.kind === 'account'}
+          title={t.deleteAccountTitle}
+          body={t.deleteAccountBody.replace('DELETE', t.deleteConfirmWord)}
+          confirmLabel={deletingAccount ? t.deleting : t.deleteLabel}
+          cancelLabel={t.cancel}
+          danger
+          disabled={deletingAccount || deleteWord !== t.deleteConfirmWord || (deleteNeedsReauth && !deletePassword)}
+          onCancel={resetDeleteAccount}
+          onConfirm={confirmAccountDeletion}
+        >
+          <div className="field">
+            <label>{t.typeToConfirm.replace('DELETE', t.deleteConfirmWord)}</label>
+            <input type="text" value={deleteWord} onChange={event => setDeleteWord(event.target.value)} autoComplete="off"/>
+          </div>
+          {deleteNeedsReauth && (
+            <div className="field">
+              <label>{t.password}</label>
+              <input type="password" value={deletePassword} onChange={event => setDeletePassword(event.target.value)} placeholder={t.reauthPassword} autoComplete="current-password"/>
+            </div>
+          )}
+        </ConfirmSheet>
+        <LegalSheet open={!!showLegal} title={showLegal === 'terms' ? t.terms : t.privacy} sections={showLegal === 'terms' ? TERMS[uiLang] : PRIVACY[uiLang]} closeLabel={t.close} onCancel={() => setShowLegal(null)}/>
       </div>
     </>
   );

@@ -4,7 +4,7 @@ const EN_PRIVACY = [
   { heading: 'Voice journaling', body: "Voice journaling uses your browser's Web Speech API. On Chrome, audio may be sent to Google's speech servers for transcription. BeHave does not store the audio; only the resulting transcript is saved when you choose to save an entry." },
   { heading: 'Your choices', body: 'You can export your account data as JSON or your entries as CSV from Manage. You can also permanently delete all of your BeHave data and your account from Manage.' },
   { heading: 'Not medical advice', body: 'BeHave is not a medical device and does not provide medical or psychological advice. Do not use it for diagnosis, treatment, or emergencies.' },
-  { heading: 'Contact and updates', body: 'Questions about privacy can be sent to support@behave.app. Last updated: February 21, 2026.' },
+  { heading: 'Contact and updates', body: 'Questions about privacy can be sent to support@behave.app. Last updated: August 31, 2026.' },
 ];
 const FR_PRIVACY = [
   { heading: 'Données recueillies', body: 'BeHave recueille votre adresse courriel, votre nom d’affichage, vos entrées de journal, vos comportements, vos tags et les montants optionnels que vous choisissez d’ajouter.' },
@@ -12,7 +12,7 @@ const FR_PRIVACY = [
   { heading: 'Journal vocal', body: 'Le journal vocal utilise l’API Web Speech de votre navigateur. Dans Chrome, l’audio peut être envoyé aux serveurs de reconnaissance vocale de Google. BeHave ne stocke pas l’audio; seul le texte transcrit est enregistré lorsque vous sauvegardez une entrée.' },
   { heading: 'Vos choix', body: 'Vous pouvez exporter vos données en JSON ou vos entrées en CSV depuis Gérer. Vous pouvez aussi supprimer définitivement toutes vos données et votre compte depuis Gérer.' },
   { heading: 'Pas un avis médical', body: 'BeHave n’est pas un dispositif médical et ne fournit pas de conseils médicaux ou psychologiques. Ne l’utilisez pas pour un diagnostic, un traitement ou une urgence.' },
-  { heading: 'Contact et mises à jour', body: 'Pour toute question, écrivez à support@behave.app. Dernière mise à jour : 21 février 2026.' },
+  { heading: 'Contact et mises à jour', body: 'Pour toute question, écrivez à support@behave.app. Dernière mise à jour : 31 août 2026.' },
 ];
 const ES_PRIVACY = [
   { heading: 'Qué recopilamos', body: 'BeHave recopila tu correo electrónico, nombre visible, entradas del diario, comportamientos, etiquetas y los importes opcionales que decidas añadir.' },
@@ -20,7 +20,7 @@ const ES_PRIVACY = [
   { heading: 'Diario de voz', body: 'El diario de voz usa la API Web Speech de tu navegador. En Chrome, el audio puede enviarse a los servidores de voz de Google para transcribirlo. BeHave no almacena el audio; solo se guarda la transcripción cuando eliges guardar una entrada.' },
   { heading: 'Tus opciones', body: 'Puedes exportar todos tus datos en JSON o tus entradas en CSV desde Gestionar. También puedes eliminar permanentemente todos tus datos y tu cuenta desde Gestionar.' },
   { heading: 'No es consejo médico', body: 'BeHave no es un dispositivo médico ni ofrece consejos médicos o psicológicos. No lo uses para diagnósticos, tratamientos o emergencias.' },
-  { heading: 'Contacto y actualizaciones', body: 'Puedes escribir a support@behave.app. Última actualización: 21 de febrero de 2026.' },
+  { heading: 'Contacto y actualizaciones', body: 'Puedes escribir a support@behave.app. Última actualización: 31 de agosto de 2026.' },
 ];
 
 const EN_TERMS = [
@@ -31,7 +31,7 @@ const EN_TERMS = [
   { heading: 'No warranty', body: 'BeHave is provided as available, without warranties of uninterrupted availability, accuracy, fitness for a particular purpose, or freedom from errors.' },
   { heading: 'Limitation of liability', body: 'To the maximum extent permitted by law, BeHave and its operators are not liable for indirect, incidental, special, consequential, or loss-of-data damages arising from your use of the service.' },
   { heading: 'Governing law', body: 'These Terms are governed by the laws of Quebec, Canada, without regard to conflict-of-law rules.' },
-  { heading: 'Contact and updates', body: 'Questions can be sent to support@behave.app. Last updated: February 21, 2026.' },
+  { heading: 'Contact and updates', body: 'Questions can be sent to support@behave.app. Last updated: August 31, 2026.' },
 ];
 const FR_TERMS = [
   { heading: 'Admissibilité', body: 'Vous devez avoir au moins 16 ans pour utiliser BeHave.' },
@@ -41,7 +41,7 @@ const FR_TERMS = [
   { heading: 'Aucune garantie', body: 'BeHave est fourni tel quel, sans garantie de disponibilité continue, d’exactitude, d’adaptation à un usage particulier ou d’absence d’erreurs.' },
   { heading: 'Limitation de responsabilité', body: 'Dans la mesure permise par la loi, BeHave et ses opérateurs ne sont pas responsables des dommages indirects, accessoires, spéciaux, consécutifs ou des pertes de données liés à votre utilisation du service.' },
   { heading: 'Droit applicable', body: 'Ces conditions sont régies par les lois du Québec, Canada, sans égard aux règles de conflit de lois.' },
-  { heading: 'Contact et mises à jour', body: 'Écrivez à support@behave.app. Dernière mise à jour : 21 février 2026.' },
+  { heading: 'Contact et mises à jour', body: 'Écrivez à support@behave.app. Dernière mise à jour : 31 août 2026.' },
 ];
 const ES_TERMS = [
   { heading: 'Elegibilidad', body: 'Debes tener al menos 16 años para usar BeHave.' },
@@ -51,7 +51,7 @@ const ES_TERMS = [
   { heading: 'Sin garantías', body: 'BeHave se proporciona según disponibilidad, sin garantías de disponibilidad ininterrumpida, exactitud, idoneidad para un fin particular o ausencia de errores.' },
   { heading: 'Limitación de responsabilidad', body: 'En la medida permitida por la ley, BeHave y sus operadores no son responsables de daños indirectos, incidentales, especiales, consecuentes o pérdida de datos derivados del uso del servicio.' },
   { heading: 'Ley aplicable', body: 'Estos Términos se rigen por las leyes de Quebec, Canadá, sin considerar las reglas sobre conflictos de leyes.' },
-  { heading: 'Contacto y actualizaciones', body: 'Puedes escribir a support@behave.app. Última actualización: 21 de febrero de 2026.' },
+  { heading: 'Contacto y actualizaciones', body: 'Puedes escribir a support@behave.app. Última actualización: 31 de agosto de 2026.' },
 ];
 
 export const PRIVACY = { en: EN_PRIVACY, fr: FR_PRIVACY, es: ES_PRIVACY };

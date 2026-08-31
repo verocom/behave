@@ -42,7 +42,6 @@ export const STRINGS = {
     deleteConfirmWord: 'DELETE', typeToConfirm: 'Type DELETE to confirm', deleting: 'Deleting…', reauthPassword: 'Enter your password to continue',
     accountDeleted: 'Your account was deleted.', data: 'Your data', exportJson: 'Export JSON', exportCsv: 'Export entries as CSV', exported: 'Export downloaded',
     currency: 'Currency', updateAvailable: 'An update is available', reloadToUpdate: 'Reload to update',
-    legalTitle: 'Legal',
     // Nav
     journal: 'Journal', stats: 'Stats', manage: 'Manage',
     record: 'Record', stop: 'Stop',
@@ -162,7 +161,6 @@ export const STRINGS = {
     deleteConfirmWord: 'SUPPRIMER', typeToConfirm: 'Tapez SUPPRIMER pour confirmer', deleting: 'Suppression…', reauthPassword: 'Entrez votre mot de passe pour continuer',
     accountDeleted: 'Votre compte a été supprimé.', data: 'Vos données', exportJson: 'Exporter en JSON', exportCsv: 'Exporter les entrées en CSV', exported: 'Export téléchargé',
     currency: 'Devise', updateAvailable: 'Une mise à jour est disponible', reloadToUpdate: 'Recharger pour mettre à jour',
-    legalTitle: 'Mentions légales',
     journal: 'Journal', stats: 'Stats', manage: 'Gérer',
     record: 'Enregistrer', stop: 'Arrêter',
     all: 'Tous', allTags: 'Tous les tags',
@@ -274,7 +272,6 @@ export const STRINGS = {
     deleteConfirmWord: 'ELIMINAR', typeToConfirm: 'Escribe ELIMINAR para confirmar', deleting: 'Eliminando…', reauthPassword: 'Introduce tu contraseña para continuar',
     accountDeleted: 'Tu cuenta ha sido eliminada.', data: 'Tus datos', exportJson: 'Exportar JSON', exportCsv: 'Exportar entradas como CSV', exported: 'Exportación descargada',
     currency: 'Moneda', updateAvailable: 'Hay una actualización disponible', reloadToUpdate: 'Recargar para actualizar',
-    legalTitle: 'Información legal',
     journal: 'Diario', stats: 'Datos', manage: 'Gestionar',
     record: 'Grabar', stop: 'Parar',
     all: 'Todos', allTags: 'Todas las etiquetas',

@@ -342,6 +342,7 @@ export default function App() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const { toast } = useToast();
   const recRef = useRef(null);
+  const latestRef = useRef({ toast, t: null });
 
   // ── Auth listener ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -407,12 +408,16 @@ export default function App() {
   const locale = LOCALE[uiLang];
   const currency = userProfile?.currency || (uiLang === 'es' ? 'EUR' : 'CAD');
   const currencies = ['CAD', 'USD', 'EUR', 'GBP', 'CHF', 'AUD', 'MXN', 'BRL'];
+  latestRef.current = { toast, t };
   useEffect(() => {
     registerSW({
       immediate: true,
-      onNeedRefresh: () => toast(`${t.updateAvailable} — ${t.reloadToUpdate}`, 'info'),
+      onNeedRefresh: () => {
+        const { toast: showToast, t: latestStrings } = latestRef.current;
+        showToast(`${latestStrings.updateAvailable} — ${latestStrings.reloadToUpdate}`, 'info');
+      },
     });
-  }, [toast, t]);
+  }, []);
   useEffect(() => { localStorage.setItem('behave_uilang', uiLang); document.documentElement.lang = uiLang; }, [uiLang]);
   useEffect(() => { localStorage.setItem('behave_voicelang', recLang); }, [recLang]);
   const TAG_MAP = Object.fromEntries(tags.map(tg => [tg.id, tg]));
@@ -642,7 +647,12 @@ export default function App() {
       resetDeleteAccount();
       toast(t.accountDeleted, 'success');
     } catch (err) {
-      if (err.code === 'auth/requires-recent-login' && allowReauth) {
+      if (err.code === 'auth/requires-recent-login') {
+        if (!allowReauth) {
+          console.error('Account deletion still requires recent login after reauthentication:', err);
+          toast(t.toastError, 'error');
+          return;
+        }
         const providerIds = auth.currentUser?.providerData?.map(provider => provider.providerId) || [];
         if (providerIds.includes('google.com')) {
           try {
@@ -666,18 +676,22 @@ export default function App() {
   }
   async function confirmAccountDeletion() {
     if (deleteWord !== t.deleteConfirmWord || !user) return;
-    if (deleteNeedsReauth) {
-      try {
+    setDeletingAccount(true);
+    try {
+      const providerIds = auth.currentUser?.providerData?.map(provider => provider.providerId) || [];
+      if (providerIds.includes('google.com')) {
+        await reauthenticateWithPopup(auth.currentUser, new GoogleAuthProvider());
+      } else if (providerIds.includes('password')) {
         await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, deletePassword));
         setDeleteNeedsReauth(false);
-        await deleteAccountData(false);
-      } catch (err) {
-        console.error('Password reauthentication failed:', err);
-        toast(t.toastError, 'error');
       }
-      return;
+      await deleteAccountData(false);
+    } catch (err) {
+      console.error('Account reauthentication failed:', err);
+      toast(t.toastError, 'error');
+    } finally {
+      setDeletingAccount(false);
     }
-    await deleteAccountData();
   }
   function resetDeleteAccount() {
     setConfirmAction(null);
@@ -688,8 +702,11 @@ export default function App() {
   function downloadFile(content, type, filename) {
     const url = URL.createObjectURL(new Blob([content], { type }));
     const link = document.createElement('a');
-    link.href = url; link.download = filename; link.click();
-    URL.revokeObjectURL(url);
+    link.href = url; link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast(t.exported, 'success');
   }
   function exportJson() {
@@ -730,6 +747,13 @@ export default function App() {
       console.error('Currency save failed:', err);
       toast(t.toastError, 'error');
     }
+  }
+  function openDeleteAccount() {
+    const providerIds = auth.currentUser?.providerData?.map(provider => provider.providerId) || [];
+    setDeleteWord('');
+    setDeletePassword('');
+    setDeleteNeedsReauth(!providerIds.includes('google.com') && providerIds.includes('password'));
+    setConfirmAction({ kind: 'account' });
   }
   const toggleCheckinTag = id => setCheckinTags(p => p.includes(id) ? p.filter(t => t !== id) : [...p, id]);
   const toggleTag = id => setEntryForm(p => ({ ...p, tags: p.tags.includes(id) ? p.tags.filter(t => t !== id) : [...p.tags, id] }));
@@ -947,7 +971,7 @@ export default function App() {
       </div>
       <div className="card danger-card">
         <div className="card-title">{t.dangerZone}</div>
-        <button className="btn btn-danger btn-full" onClick={() => { setDeleteWord(''); setDeletePassword(''); setDeleteNeedsReauth(false); setConfirmAction({ kind: 'account' }); }}>{t.deleteAccount}</button>
+        <button className="btn btn-danger btn-full" onClick={openDeleteAccount}>{t.deleteAccount}</button>
       </div>
       <div className="card">
         <button className="btn btn-ghost btn-full" onClick={replayOnboarding}>🌱 {t.onboarding.replay}</button>

@@ -401,7 +401,7 @@ export default function App() {
     media.addEventListener?.('change', apply);
     return () => media.removeEventListener?.('change', apply);
   }, [themeMode]);
-  useEffect(() => { document.body.style.background = dark ? '#0F1512' : '#F6F1E7'; }, [dark]);
+  useEffect(() => { document.body.style.background = dark ? '#0A1615' : '#F6FBFA'; }, [dark]);
 
   // ── i18n ──────────────────────────────────────────────────────────────────
   const t = STRINGS[uiLang];
@@ -981,7 +981,7 @@ export default function App() {
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (!authReady) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: dark ? '#0F1512' : '#F6F1E7', fontFamily: 'Manrope,sans-serif', color: dark ? '#92A398' : '#82755F', fontSize: '0.9rem', fontWeight: 600 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: dark ? '#0A1615' : '#F6FBFA', fontFamily: 'Manrope,sans-serif', color: dark ? '#8CA9A5' : '#5C7572', fontSize: '0.9rem', fontWeight: 600 }}>
       {STRINGS[uiLang].loading}
     </div>
   );
@@ -993,21 +993,22 @@ export default function App() {
 
         {/* Header */}
         <div className="header">
-          <div className="logo">
-            <div className="logo-name"><span className="be">Be</span><span className="have">have</span></div>
-            <div className="logo-sub">{t.tagline}</div>
-          </div>
+          {user ? (
+            <div className="greeting">
+              <div className="greeting-text">
+                {t.greeting} <span className="greeting-name">{(user.displayName || user.email?.split('@')[0] || '').split(' ')[0]}</span> <span className="greeting-wave">👋</span>
+              </div>
+              <div className="greeting-sub">{t.tagline}</div>
+            </div>
+          ) : (
+            <div className="logo">
+              <div className="logo-name"><span className="be">Be</span><span className="have">have</span></div>
+              <div className="logo-sub">{t.tagline}</div>
+            </div>
+          )}
           <div className="header-actions">
             <button className="icon-btn" onClick={() => { const i = UI_LANGS.findIndex(l => l.code === uiLang); setUiLang(UI_LANGS[(i + 1) % UI_LANGS.length].code); }} title={t.language} style={{ fontSize: '0.7rem', fontWeight: 800 }}>{uiLang.toUpperCase()}</button>
             <button className="icon-btn" onClick={() => setThemeMode(dark ? 'light' : 'dark')} title={t.toggleTheme}>{dark ? <SunIcon/> : <MoonIcon/>}</button>
-            {user && (
-              <>
-                <div className="user-pill">
-                  <div className="user-pill-av">{(user.displayName || user.email || '?')[0].toUpperCase()}</div>
-                  <div className="user-pill-name">{user.displayName || user.email?.split('@')[0]}</div>
-                </div>
-              </>
-            )}
           </div>
         </div>
 

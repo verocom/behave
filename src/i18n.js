@@ -14,6 +14,7 @@ export const DEFAULT_VOICE = { en: 'en-CA', fr: 'fr-CA', es: 'es-ES' };
 export const STRINGS = {
   en: {
     tagline: 'behavior journal',
+    greeting: 'Hello',
     heroTagline: 'Track. Understand. Change.',
     heroSub: 'Your private journal for observing harmful patterns and building better ones.',
     featVoice: '🎙️ Voice journaling',
@@ -134,6 +135,7 @@ export const STRINGS = {
 
   fr: {
     tagline: 'journal de comportements',
+    greeting: 'Bonjour',
     heroTagline: 'Observer. Comprendre. Changer.',
     heroSub: 'Ton journal privé pour observer tes patterns nuisibles et bâtir de meilleures habitudes.',
     featVoice: '🎙️ Journal vocal',
@@ -245,6 +247,7 @@ export const STRINGS = {
 
   es: {
     tagline: 'diario de comportamientos',
+    greeting: 'Hola',
     heroTagline: 'Observar. Comprender. Cambiar.',
     heroSub: 'Tu diario privado para observar patrones dañinos y construir mejores hábitos.',
     featVoice: '🎙️ Diario de voz',

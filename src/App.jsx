@@ -52,10 +52,6 @@ const SUGGESTED_BEHAVIORS = [
   { id: 'socialMedia', cost: 0 }, { id: 'videoGames', cost: 0 },
   { id: 'nailBiting', cost: 0 }, { id: 'procrastination', cost: 0 },
 ];
-const SUGGESTED_REPLACEMENTS = ['walk', 'callFriend', 'drinkWater', 'journal', 'stretch', 'music', 'outside'];
-// DBT techniques offered alongside the generic replacements above in onboarding step 3 —
-// one per coping-toolkit category, picked for being the most actionable in an acute moment.
-const ONBOARDING_COPING_IDS = ['tipp', 'selfSoothe5', 'stop', 'oppositeAction', 'wiseMind', 'improve'];
 // Translated onboarding behavior labels in every supported language, used by matchBehavior()
 // to recognize a behavior regardless of which language it was originally seeded in.
 const ONBOARDING_BEHAVIOR_LABELS = { en: STRINGS.en.onboarding.behaviors, fr: STRINGS.fr.onboarding.behaviors, es: STRINGS.es.onboarding.behaviors };
@@ -106,6 +102,7 @@ const Ico = ({ d, d2, cx, cy, r, children, size = 22 }) => (
 const MicIcon   = () => <Ico d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" d2="M19 10v2a7 7 0 0 1-14 0v-2"><line x1="12" y1="19" x2="12" y2="22" stroke="currentColor"/></Ico>;
 const StopIcon  = () => <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><rect x="5" y="5" width="14" height="14" rx="3.5"/></svg>;
 const BookIcon  = () => <Ico d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" d2="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>;
+const HomeIcon  = () => <Ico d="M3 10.5 12 3l9 7.5" d2="M5 9.5V21h14V9.5"><line x1="10" y1="21" x2="10" y2="14" stroke="currentColor"/><line x1="14" y1="21" x2="14" y2="14" stroke="currentColor"/></Ico>;
 const ChartIcon = () => <Ico><line x1="18" y1="20" x2="18" y2="10" stroke="currentColor"/><line x1="12" y1="20" x2="12" y2="4" stroke="currentColor"/><line x1="6" y1="20" x2="6" y2="14" stroke="currentColor"/><line x1="2" y1="20" x2="22" y2="20" stroke="currentColor"/></Ico>;
 const GearIcon  = () => <Ico d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" d2="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>;
 const PlusIcon  = () => <Ico><line x1="12" y1="5" x2="12" y2="19" stroke="currentColor"/><line x1="5" y1="12" x2="19" y2="12" stroke="currentColor"/></Ico>;
@@ -350,7 +347,7 @@ export default function App() {
   const [userProfile,  setUserProfile]  = useState(null);
   const [profileLoaded,setProfileLoaded]= useState(false);
   const [recLang,   setRecLang]   = useState(() => localStorage.getItem('behave_voicelang') || DEFAULT_VOICE[localStorage.getItem('behave_uilang') || detectUILang()]);
-  const [view,      setView]      = useState('journal');
+  const [view,      setView]      = useState('today');
   const [recording, setRecording] = useState(false);
   const [transcript,setTranscript]= useState('');
   const [recErr,    setRecErr]    = useState('');
@@ -369,10 +366,6 @@ export default function App() {
   const [onbStep,         setOnbStep]         = useState(1);
   const [onbBehaviors,    setOnbBehaviors]    = useState([]);
   const [onbCustomBehavior,   setOnbCustomBehavior]   = useState('');
-  const [onbReplacements,     setOnbReplacements]     = useState([]);
-  const [onbCustomReplacement,setOnbCustomReplacement]= useState('');
-  const [onbTags,         setOnbTags]         = useState(() => DEFAULT_TAGS.map(tg => tg.id));
-  const [onbCustomTag,    setOnbCustomTag]    = useState('');
   const [onbSaving,       setOnbSaving]       = useState(false);
   const [forceOnboarding, setForceOnboarding] = useState(false);
   const [autoTagIds,        setAutoTagIds]        = useState([]);
@@ -383,6 +376,7 @@ export default function App() {
   const [moodChecks,    setMoodChecks]    = useState([]);
   const [thermoDaypart, setThermoDaypart] = useState(() => suggestDaypart());
   const [thermoRatings, setThermoRatings] = useState({});
+  const [showProgressDetail, setShowProgressDetail] = useState(false);
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
   const [confirmAction, setConfirmAction] = useState(null);
@@ -478,27 +472,15 @@ export default function App() {
   // ── Onboarding (first login: suggest behaviors & replacement tags) ─────────
   const showOnboarding = !!user && profileLoaded && (forceOnboarding || (!userProfile?.onboarded && behaviors.length === 0 && entries.length === 0));
   const existingBehaviorLabels = new Set(behaviors.map(b => b.label));
-  const existingTagIds = new Set(tags.map(tg => tg.id));
-  const existingReplacementLabels = new Set(userProfile?.favoriteReplacements || []);
   const onbSuggestedBehaviors = SUGGESTED_BEHAVIORS.filter(s => !existingBehaviorLabels.has(t.onboarding.behaviors[s.id]));
-  const replacementLabelFor = id => t.onboarding.replacements[id] || t.copingTechniques[id]?.title || id;
-  const onbSuggestedReplacements = [...SUGGESTED_REPLACEMENTS, ...ONBOARDING_COPING_IDS].filter(id => !existingReplacementLabels.has(replacementLabelFor(id)));
-  const onbSuggestedTags = DEFAULT_TAGS.filter(tg => !existingTagIds.has(tg.id));
   const toggleOnbBehavior = id => setOnbBehaviors(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  const toggleOnbReplacement = id => setOnbReplacements(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  const toggleOnbTag = id => setOnbTags(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   function resetOnboardingForm() {
     setOnbStep(1);
     setOnbBehaviors([]); setOnbCustomBehavior('');
-    setOnbReplacements([]); setOnbCustomReplacement('');
-    setOnbTags(DEFAULT_TAGS.map(tg => tg.id)); setOnbCustomTag('');
   }
   function replayOnboarding() {
     setOnbStep(1);
     setOnbBehaviors([]); setOnbCustomBehavior('');
-    setOnbReplacements([]); setOnbCustomReplacement('');
-    setOnbTags(DEFAULT_TAGS.filter(tg => !tags.some(tg2 => tg2.id === tg.id)).map(tg => tg.id));
-    setOnbCustomTag('');
     setForceOnboarding(true);
   }
   async function skipOnboarding() {
@@ -523,24 +505,11 @@ export default function App() {
           label: onbCustomBehavior.trim(), cost: 0, createdAt: serverTimestamp(),
         }));
       }
-      const replacementLabels = onbReplacements.map(id => replacementLabelFor(id));
-      if (onbCustomReplacement.trim()) replacementLabels.push(onbCustomReplacement.trim());
-      const tagWrites = onbTags.map(id => {
-        const def = DEFAULT_TAGS.find(dt => dt.id === id);
-        return setDoc(doc(db, 'users', user.uid, 'tags', id), {
-          label: t.tags[id] || id, emoji: def?.emoji || '🏷️', color: def?.color || '#6B9E8A', createdAt: serverTimestamp(),
-        });
-      });
-      if (onbCustomTag.trim()) {
-        tagWrites.push(addDoc(collection(db, 'users', user.uid, 'tags'), {
-          label: onbCustomTag.trim(), emoji: '🏷️', color: '#6B9E8A', createdAt: serverTimestamp(),
-        }));
-      }
-      await Promise.all([...writes, ...tagWrites]);
-      await setDoc(doc(db, 'users', user.uid), {
-        onboarded: true, tagsSeeded: true,
-        favoriteReplacements: [...new Set([...existingReplacementLabels, ...replacementLabels])],
-      }, { merge: true });
+      await Promise.all(writes);
+      // Default tags & favoriteReplacements are left for the user to discover in context
+      // (tag seeding happens via the "skip onboarding" fallback effect once onboarded=true;
+      // favoriteReplacements starts empty and fills in from the Coping Toolkit / quick check).
+      await setDoc(doc(db, 'users', user.uid), { onboarded: true }, { merge: true });
       setForceOnboarding(false);
       resetOnboardingForm();
     } catch (err) {
@@ -637,6 +606,15 @@ export default function App() {
     setEntryForm({ behaviorId: entry.behaviorId || '', tags: entry.tags || [], replacement: entry.replacement || '', note: entry.note || '' });
     setRecErr(''); setShowEntry(true);
   }
+  // "+ Add details" from the quick-check card: hand off its tags/behavior into a full
+  // entry draft (voice/text + note) instead of duplicating the recording UI inline.
+  function openQuickDetails() {
+    setEditingEntryId(null);
+    setTranscript('');
+    setEntryForm({ behaviorId: checkinBehavior, tags: checkinTags, replacement: '', note: '' });
+    setCheckinTags([]); setCheckinBehavior(''); setThermoRatings({});
+    setRecErr(''); setShowEntry(true);
+  }
   async function saveEntry() {
     if (!entryForm.behaviorId || !transcript.trim() || !user) return;
     const data = {
@@ -666,34 +644,36 @@ export default function App() {
       toast(t.toastError, 'error');
     }
   }
-  async function quickLog() {
-    if (checkinTags.length === 0 || !user) return;
+  const setThermoRating = (tagId, value) => setThermoRatings(p => ({ ...p, [tagId]: value }));
+  // Unified quick-check save: tags → a lightweight `entries` doc (same shape the old
+  // check-in card wrote), touched intensity sliders → a `moodChecks` doc. Either, both,
+  // or neither can fire from one Save tap — MoodTimeline/ThermometerGrid read the same
+  // collections as before, so nothing downstream needs to change.
+  async function saveQuickCheck() {
+    const hasTags = checkinTags.length > 0;
+    const hasRatings = Object.keys(thermoRatings).length > 0;
+    if ((!hasTags && !hasRatings) || !user) return;
     try {
-      await addDoc(collection(db, 'users', user.uid, 'entries'), {
-        behaviorId: checkinBehavior || null, timestamp: Date.now(),
-        transcript: '', tags: checkinTags, replacement: '', note: '',
-        type: 'checkin', createdAt: serverTimestamp(),
-      });
-      setCheckinTags([]); setCheckinBehavior('');
+      const writes = [];
+      if (hasTags) {
+        writes.push(addDoc(collection(db, 'users', user.uid, 'entries'), {
+          behaviorId: checkinBehavior || null, timestamp: Date.now(),
+          transcript: '', tags: checkinTags, replacement: '', note: '',
+          type: 'checkin', createdAt: serverTimestamp(),
+        }));
+      }
+      if (hasRatings) {
+        writes.push(addDoc(collection(db, 'users', user.uid, 'moodChecks'), {
+          timestamp: Date.now(), daypart: thermoDaypart, ratings: thermoRatings, createdAt: serverTimestamp(),
+        }));
+      }
+      await Promise.all(writes);
+      setCheckinTags([]); setCheckinBehavior(''); setThermoRatings({});
       setCheckinSaved(true);
       setTimeout(() => setCheckinSaved(false), 2000);
       toast(t.saved, 'success');
     } catch (err) {
-      console.error('Quick log failed:', err);
-      toast(t.toastError, 'error');
-    }
-  }
-  const setThermoRating = (tagId, value) => setThermoRatings(p => ({ ...p, [tagId]: value }));
-  async function saveMoodCheck() {
-    if (Object.keys(thermoRatings).length === 0 || !user) return;
-    try {
-      await addDoc(collection(db, 'users', user.uid, 'moodChecks'), {
-        timestamp: Date.now(), daypart: thermoDaypart, ratings: thermoRatings, createdAt: serverTimestamp(),
-      });
-      setThermoRatings({});
-      toast(t.thermometerSaved, 'success');
-    } catch (err) {
-      console.error('Mood check save failed:', err);
+      console.error('Quick check save failed:', err);
       toast(t.toastError, 'error');
     }
   }
@@ -942,71 +922,72 @@ export default function App() {
   });
 
   // ── Render views ──────────────────────────────────────────────────────────
+  const renderToday = () => (
+    <>
+      {tags.length > 0 && (
+        <div className="card checkin-card">
+          <div className="card-title">{t.checkinTitle}</div>
+          <div className="tags" style={{ marginBottom: 12 }}>
+            {tags.map(tg => (
+              <span key={tg.id} className={`tag ${checkinTags.includes(tg.id) ? '' : 'off'}`}
+                style={{ background: tg.color + '22', borderColor: tg.color + (checkinTags.includes(tg.id) ? '99' : '44'), color: tg.color }}
+                onClick={() => toggleCheckinTag(tg.id)}>{tg.emoji} {tg.label}</span>
+            ))}
+          </div>
+          {checkinTags.some(id => EMOTION_TAGS.includes(id) && TAG_MAP[id]) && (
+            <>
+              <div className="filter-bar" style={{ marginBottom: 10 }}>
+                {DAYPARTS.map(dp => (
+                  <div key={dp} className={`chip ${thermoDaypart === dp ? 'on' : ''}`} onClick={() => setThermoDaypart(dp)}>{t.dayparts[dp]}</div>
+                ))}
+              </div>
+              {checkinTags.filter(id => EMOTION_TAGS.includes(id) && TAG_MAP[id]).map(id => {
+                const tg = TAG_MAP[id];
+                const value = thermoRatings[id] ?? 0;
+                return (
+                  <div key={id} className="thermo-row">
+                    <div className="thermo-row-head">
+                      <span style={{ color: tg.color, fontWeight: 700 }}>{tg.emoji} {tg.label}</span>
+                      <span className="thermo-value" style={{ color: tg.color }}>{thermoRatings[id] ?? '—'}</span>
+                    </div>
+                    <input type="range" min="0" max="10" value={value} style={{ accentColor: tg.color }}
+                      onChange={e => setThermoRating(id, Number(e.target.value))}/>
+                  </div>
+                );
+              })}
+            </>
+          )}
+          {behaviors.length > 0 && checkinTags.length > 0 && (
+            <div className="field" style={{ marginBottom: 12 }}>
+              <select value={checkinBehavior} onChange={e => setCheckinBehavior(e.target.value)}>
+                <option value="">{t.checkinNoBehavior}</option>
+                {behaviors.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+              </select>
+            </div>
+          )}
+          {suggestTechniques(checkinTags).length > 0 && (
+            <div className="tags" style={{ marginBottom: 12 }}>
+              {suggestTechniques(checkinTags).map(tc => (
+                <span key={tc.id} className="tag readonly" style={{ background: 'var(--accent-light)', borderColor: 'var(--accent)', color: 'var(--accent-deep)' }}>
+                  💡 {t.copingTechniques[tc.id].title}
+                </span>
+              ))}
+            </div>
+          )}
+          <button className="btn btn-ghost btn-full" style={{ marginBottom: 8 }} onClick={openQuickDetails}>🎙️ {t.addDetails}</button>
+          <button className="btn btn-primary btn-full" onClick={saveQuickCheck} disabled={checkinTags.length === 0 && Object.keys(thermoRatings).length === 0}>
+            {checkinSaved ? t.checkinSaved : t.checkinLog}
+          </button>
+        </div>
+      )}
+    </>
+  );
+
   const renderJournal = () => {
     const grouped = groupByDay(filtered);
     const days = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
     return (
       <>
-        {tags.length > 0 && (
-          <div className="card checkin-card">
-            <div className="card-title">{t.checkinTitle}</div>
-            <div className="tags" style={{ marginBottom: 12 }}>
-              {tags.map(tg => (
-                <span key={tg.id} className={`tag ${checkinTags.includes(tg.id) ? '' : 'off'}`}
-                  style={{ background: tg.color + '22', borderColor: tg.color + (checkinTags.includes(tg.id) ? '99' : '44'), color: tg.color }}
-                  onClick={() => toggleCheckinTag(tg.id)}>{tg.emoji} {tg.label}</span>
-              ))}
-            </div>
-            {behaviors.length > 0 && checkinTags.length > 0 && (
-              <div className="field" style={{ marginBottom: 12 }}>
-                <select value={checkinBehavior} onChange={e => setCheckinBehavior(e.target.value)}>
-                  <option value="">{t.checkinNoBehavior}</option>
-                  {behaviors.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
-                </select>
-              </div>
-            )}
-            {suggestTechniques(checkinTags).length > 0 && (
-              <div className="tags" style={{ marginBottom: 12 }}>
-                {suggestTechniques(checkinTags).map(tc => (
-                  <span key={tc.id} className="tag readonly" style={{ background: 'var(--accent-light)', borderColor: 'var(--accent)', color: 'var(--accent-deep)' }}>
-                    💡 {t.copingTechniques[tc.id].title}
-                  </span>
-                ))}
-              </div>
-            )}
-            <button className="btn btn-primary btn-full" onClick={quickLog} disabled={checkinTags.length === 0}>
-              {checkinSaved ? t.checkinSaved : t.checkinLog}
-            </button>
-          </div>
-        )}
-        {EMOTION_TAGS.some(id => TAG_MAP[id]) && (
-          <div className="card">
-            <div className="card-title">🌡️ {t.thermometer}</div>
-            <p className="onb-body" style={{ marginBottom: 12 }}>{t.thermometerIntro}</p>
-            <div className="filter-bar" style={{ marginBottom: 14 }}>
-              {DAYPARTS.map(dp => (
-                <div key={dp} className={`chip ${thermoDaypart === dp ? 'on' : ''}`} onClick={() => setThermoDaypart(dp)}>{t.dayparts[dp]}</div>
-              ))}
-            </div>
-            {EMOTION_TAGS.filter(id => TAG_MAP[id]).map(id => {
-              const tg = TAG_MAP[id];
-              const value = thermoRatings[id] ?? 0;
-              return (
-                <div key={id} className="thermo-row">
-                  <div className="thermo-row-head">
-                    <span style={{ color: tg.color, fontWeight: 700 }}>{tg.emoji} {tg.label}</span>
-                    <span className="thermo-value" style={{ color: tg.color }}>{thermoRatings[id] ?? '—'}</span>
-                  </div>
-                  <input type="range" min="0" max="10" value={value} style={{ accentColor: tg.color }}
-                    onChange={e => setThermoRating(id, Number(e.target.value))}/>
-                </div>
-              );
-            })}
-            <button className="btn btn-primary btn-full" style={{ marginTop: 6 }} onClick={saveMoodCheck} disabled={Object.keys(thermoRatings).length === 0}>
-              {t.thermometerSave}
-            </button>
-          </div>
-        )}
         <div className="filter-bar">
           <div className={`chip ${fBehavior === 'all' ? 'on' : ''}`} onClick={() => setFBehavior('all')}>{t.all}</div>
           {behaviors.map(b => <div key={b.id} className={`chip ${fBehavior === b.id ? 'on' : ''}`} onClick={() => setFBehavior(b.id)}>{b.label}</div>)}
@@ -1078,25 +1059,41 @@ export default function App() {
         <div className="stat-grid">
           <div className="stat"><div className="stat-val">{s.total}</div><div className="stat-label">{t.totalEntries}</div></div>
           <div className="stat"><div className={`stat-val ${s.trend < 0 ? 'success' : s.trend > 0 ? 'danger' : ''}`}>{s.last7}{s.trend < 0 ? ' ↓' : s.trend > 0 ? ' ↑' : ''}</div><div className="stat-label">{t.thisWeek}</div></div>
-          <div className="stat"><div className="stat-val success">{s.total ? Math.round((s.replaced / s.total) * 100) : 0}%</div><div className="stat-label">{t.replaced}</div></div>
           <div className="stat"><div className="stat-val warm">{formatMoney(s.totalCost, locale, currency)}</div><div className="stat-label">{t.estCost}</div></div>
-          {s.last7 > 0 && (
-            <div className="stat">
-              <div className={`stat-val ${s.regTrend > 0 ? 'success' : s.regTrend < 0 ? 'danger' : ''}`}>
-                {Math.round((s.regRateLast7 ?? 0) * 100)}%{s.regTrend > 0 ? ' ↑' : s.regTrend < 0 ? ' ↓' : ''}
-              </div>
-              <div className="stat-label">{t.regulationRate}</div>
-            </div>
-          )}
           {userProfile?.streakEnabled && s.missedLast14 < 5 && (
             <div className="stat"><div className="stat-val">{s.streak}</div><div className="stat-label">{t.currentStreak}</div></div>
           )}
         </div>
-        {s.savedCost > 0 && (
-          <div className="savings-card">
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>🌱</div>
-            <div className="savings-amount">{formatMoney(s.savedCost, locale, currency)}</div>
-            <div className="savings-label">{t.savedBy(s.replaced)}</div>
+        {s.total > 0 && (
+          <div className="card">
+            <div className="card-title">{t.progress}</div>
+            <div className={`stat-val ${s.regTrend > 0 ? 'success' : s.regTrend < 0 ? 'danger' : ''}`} style={{ fontSize: '2.4rem' }}>
+              {Math.round((s.replaced / s.total) * 100)}%{s.last7 > 0 && (s.regTrend > 0 ? ' ↑' : s.regTrend < 0 ? ' ↓' : '')}
+            </div>
+            <div className="stat-label">{t.replaced}</div>
+            {(s.savedCost > 0 || s.topTechniques.length > 0) && (
+              <>
+                <button className="btn btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={() => setShowProgressDetail(p => !p)}>
+                  {showProgressDetail ? t.hideDetail : t.viewDetail}
+                </button>
+                {showProgressDetail && (
+                  <div style={{ marginTop: 14 }}>
+                    {s.savedCost > 0 && (
+                      <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                        <div className="savings-amount">{formatMoney(s.savedCost, locale, currency)}</div>
+                        <div className="savings-label">{t.savedBy(s.replaced)}</div>
+                      </div>
+                    )}
+                    {s.topTechniques.length > 0 && (
+                      <>
+                        <div className="card-title">{t.techniquesUsed}</div>
+                        {s.topTechniques.map(([tcId, cnt]) => <div key={tcId} className="bar-row"><div className="bar-label">{t.copingTechniques[tcId]?.title}</div><div className="bar-track"><div className="bar-fill" style={{ width: `${(cnt / s.topTechniques[0][1]) * 100}%` }}/></div><div className="bar-count">{cnt}</div></div>)}
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
         {s.byBehavior.length > 0 && (
@@ -1111,12 +1108,6 @@ export default function App() {
             {s.topTags.map(([tid, cnt]) => { const tg = TAG_MAP[tid]; if (!tg) return null; return <div key={tid} className="bar-row"><div className="bar-label">{tg.emoji} {tg.label}</div><div className="bar-track"><div className="bar-fill" style={{ width: `${(cnt / s.topTags[0][1]) * 100}%`, background: tg.color }}/></div><div className="bar-count">{cnt}</div></div>; })}
           </div>
         )}
-        {s.topTechniques.length > 0 && (
-          <div className="card">
-            <div className="card-title">{t.techniquesUsed}</div>
-            {s.topTechniques.map(([tcId, cnt]) => <div key={tcId} className="bar-row"><div className="bar-label">{t.copingTechniques[tcId]?.title}</div><div className="bar-track"><div className="bar-fill" style={{ width: `${(cnt / s.topTechniques[0][1]) * 100}%` }}/></div><div className="bar-count">{cnt}</div></div>)}
-          </div>
-        )}
         {s.total === 0 && <div className="empty"><div className="empty-icon">📊</div><p>{t.statsEmpty}</p></div>}
       </>
     );
@@ -1124,6 +1115,7 @@ export default function App() {
 
   const renderSettings = () => (
     <>
+      <div className="settings-section-title">{t.dataSection}</div>
       <div className="card">
         <div className="card-title">{t.myBehaviors}</div>
         {behaviors.length === 0 && <p style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 14 }}>{t.noBehaviors}</p>}
@@ -1152,6 +1144,8 @@ export default function App() {
         </div>
         <button className="btn btn-ghost btn-sm btn-full" onClick={openNewTag}><PlusIcon/> {t.addTag}</button>
       </div>
+
+      <div className="settings-section-title">{t.preferencesSection}</div>
       <div className="card">
         <div className="card-title">{t.uiLanguage}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -1160,6 +1154,7 @@ export default function App() {
       </div>
       <div className="card">
         <div className="card-title">{t.voiceLanguage}</div>
+        <p style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 10 }}>{t.voiceLanguageHint}</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {LANGS.map(l => <div key={l.code} className={`lang-chip ${recLang === l.code ? 'on' : ''}`} onClick={() => setRecLang(l.code)}>{l.flag} {l.label}</div>)}
         </div>
@@ -1170,6 +1165,19 @@ export default function App() {
           {currencies.map(code => <button key={code} className={`lang-chip ${currency === code ? 'on' : ''}`} onClick={() => saveCurrency(code)}>{code}</button>)}
         </div>
       </div>
+      <div className="card">
+        <div className="behavior-item" style={{ marginBottom: 0 }}>
+          <div className="behavior-name">{t.showStreakToggle}</div>
+          <button className={`lang-chip ${userProfile?.streakEnabled ? 'on' : ''}`} onClick={toggleStreakEnabled}>{userProfile?.streakEnabled ? `✓ ${t.streakOn}` : t.streakOff}</button>
+        </div>
+      </div>
+
+      <div className="settings-section-title">{t.resourcesSection}</div>
+      <div className="card">
+        <button className="btn btn-ghost btn-full" onClick={() => setShowCopingToolkit(true)}>🧰 {t.copingToolkit}</button>
+      </div>
+
+      <div className="settings-section-title">{t.accountSection}</div>
       <div className="card">
         <div className="card-title">{t.data}</div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -1185,18 +1193,14 @@ export default function App() {
         </div>
       </div>
       <div className="card">
-        <button className="btn btn-ghost btn-full" style={{ marginBottom: 8 }} onClick={() => setShowCopingToolkit(true)}>🧰 {t.copingToolkit}</button>
-        <div className="behavior-item" style={{ marginBottom: 0 }}>
-          <div className="behavior-name">{t.showStreakToggle}</div>
-          <button className={`lang-chip ${userProfile?.streakEnabled ? 'on' : ''}`} onClick={toggleStreakEnabled}>{userProfile?.streakEnabled ? `✓ ${t.streakOn}` : t.streakOff}</button>
-        </div>
+        <button className="btn btn-ghost btn-full" onClick={replayOnboarding}>🌱 {t.onboarding.replay}</button>
+      </div>
+      <div className="card">
+        <button className="btn btn-ghost btn-full" onClick={signOutUser}><LogoutIcon/> {t.signOut}</button>
       </div>
       <div className="card danger-card">
         <div className="card-title">{t.dangerZone}</div>
         <button className="btn btn-danger btn-full" onClick={openDeleteAccount}>{t.deleteAccount}</button>
-      </div>
-      <div className="card">
-        <button className="btn btn-ghost btn-full" onClick={replayOnboarding}>🌱 {t.onboarding.replay}</button>
       </div>
     </>
   );
@@ -1241,20 +1245,21 @@ export default function App() {
         {user && (
           <>
             <div className="content">
+              {view === 'today'     && renderToday()}
               {view === 'journal'   && renderJournal()}
               {view === 'dashboard' && renderDashboard()}
               {view === 'settings'  && renderSettings()}
             </div>
             <nav className="tabbar">
+              <button className={`tab ${view === 'today' ? 'on' : ''}`} onClick={() => setView('today')}><HomeIcon/>{t.today}</button>
               <button className={`tab ${view === 'journal' ? 'on' : ''}`} onClick={() => setView('journal')}><BookIcon/>{t.journal}</button>
-              <button className={`tab ${view === 'dashboard' ? 'on' : ''}`} onClick={() => setView('dashboard')}><ChartIcon/>{t.stats}</button>
               <div className="tab-fab-slot">
                 <button className={`record-btn ${recording ? 'active' : 'idle'}`} onClick={recording ? stopRec : startRec} aria-label={recording ? t.stop : t.record}>
                   {recording ? <StopIcon/> : <MicIcon/>}
                 </button>
               </div>
+              <button className={`tab ${view === 'dashboard' ? 'on' : ''}`} onClick={() => setView('dashboard')}><ChartIcon/>{t.stats}</button>
               <button className={`tab ${view === 'settings' ? 'on' : ''}`} onClick={() => setView('settings')}><GearIcon/>{t.manage}</button>
-              <button className="tab" onClick={signOutUser}><LogoutIcon/>{t.signOut.split(' ')[0]}</button>
             </nav>
           </>
         )}
@@ -1376,7 +1381,7 @@ export default function App() {
             <div ref={onboardingModalRef} className="modal" role="dialog" aria-modal="true" aria-label={t.onboarding.step1Title}>
               <div className="modal-handle"/>
               <div className="onb-dots">
-                {[1, 2, 3, 4].map(n => <div key={n} className={`onb-dot ${onbStep === n ? 'on' : ''}`}/>)}
+                {[1, 2].map(n => <div key={n} className={`onb-dot ${onbStep === n ? 'on' : ''}`}/>)}
               </div>
               {onbStep === 1 && (
                 <>
@@ -1406,51 +1411,7 @@ export default function App() {
                     <input type="text" placeholder={t.onboarding.customBehaviorPh} value={onbCustomBehavior} onChange={e => setOnbCustomBehavior(e.target.value)}/>
                   </div>
                   <div className="modal-actions">
-                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setOnbStep(3)}>{t.onboarding.skip}</button>
-                    <button className="btn btn-primary" style={{ flex: 2 }} onClick={() => setOnbStep(3)}>{t.onboarding.next}</button>
-                  </div>
-                </>
-              )}
-              {onbStep === 3 && (
-                <>
-                  <div className="modal-title">{t.onboarding.step3Title}</div>
-                  <p className="onb-body">{t.onboarding.step3Body}</p>
-                  <div className="tags" style={{ marginBottom: 14 }}>
-                    {onbSuggestedReplacements.length === 0 && <p className="onb-body" style={{ margin: 0 }}>{t.onboarding.allAdded}</p>}
-                    {onbSuggestedReplacements.map(id => (
-                      <span key={id} className={`tag ${onbReplacements.includes(id) ? '' : 'off'}`}
-                        style={{ background: 'var(--warm-light)', borderColor: 'var(--warm)', color: 'var(--warm)' }}
-                        onClick={() => toggleOnbReplacement(id)}>{replacementLabelFor(id)}</span>
-                    ))}
-                  </div>
-                  <div className="field">
-                    <label>{t.onboarding.addCustom}</label>
-                    <input type="text" placeholder={t.onboarding.customReplacementPh} value={onbCustomReplacement} onChange={e => setOnbCustomReplacement(e.target.value)}/>
-                  </div>
-                  <div className="modal-actions">
-                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setOnbStep(2)}>{t.onboarding.back}</button>
-                    <button className="btn btn-primary" style={{ flex: 2 }} onClick={() => setOnbStep(4)}>{t.onboarding.next}</button>
-                  </div>
-                </>
-              )}
-              {onbStep === 4 && (
-                <>
-                  <div className="modal-title">{t.onboarding.step4Title}</div>
-                  <p className="onb-body">{t.onboarding.step4Body}</p>
-                  <div className="tags" style={{ marginBottom: 14 }}>
-                    {onbSuggestedTags.length === 0 && <p className="onb-body" style={{ margin: 0 }}>{t.onboarding.allAdded}</p>}
-                    {onbSuggestedTags.map(tg => (
-                      <span key={tg.id} className={`tag ${onbTags.includes(tg.id) ? '' : 'off'}`}
-                        style={{ background: tg.color + '22', borderColor: tg.color, color: tg.color }}
-                        onClick={() => toggleOnbTag(tg.id)}>{tg.emoji} {t.tags[tg.id] || tg.id}</span>
-                    ))}
-                  </div>
-                  <div className="field">
-                    <label>{t.onboarding.addCustom}</label>
-                    <input type="text" placeholder={t.onboarding.customTagPh} value={onbCustomTag} onChange={e => setOnbCustomTag(e.target.value)}/>
-                  </div>
-                  <div className="modal-actions">
-                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setOnbStep(3)}>{t.onboarding.back}</button>
+                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setOnbStep(1)}>{t.onboarding.back}</button>
                     <button className="btn btn-primary" style={{ flex: 2 }} onClick={finishOnboarding} disabled={onbSaving}>{onbSaving ? '…' : t.onboarding.finish}</button>
                   </div>
                 </>

@@ -121,6 +121,8 @@ export const CSS = `
   .app.dark .card { border: 1px solid var(--border); }
   .content > .card:nth-of-type(1) { animation-delay: 0.03s; } .content > .card:nth-of-type(2) { animation-delay: 0.08s; } .content > .card:nth-of-type(3) { animation-delay: 0.13s; } .content > .card:nth-of-type(4) { animation-delay: 0.18s; }
   .card-title { font-size: 0.68rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+  .settings-section-title { font-size: 0.72rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.2px; margin: 20px 2px 8px; }
+  .settings-section-title:first-child { margin-top: 2px; }
   .checkin-card { position: relative; overflow: hidden; background: linear-gradient(135deg, var(--accent-light), var(--gold-light) 55%, var(--warm-light)); }
   .checkin-card::before { content: ''; position: absolute; width: 140px; height: 140px; border-radius: 50%; background: var(--accent); opacity: 0.1; top: -56px; right: -34px; pointer-events: none; }
   .checkin-card::after { content: ''; position: absolute; width: 84px; height: 84px; border-radius: 50%; background: var(--warm); opacity: 0.12; bottom: -30px; right: 54px; pointer-events: none; }

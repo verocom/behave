@@ -21,6 +21,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { matchTags, matchBehavior, getTimeOfDayTag } from './autoTag';
 import { suggestTechniques, COPING_TECHNIQUES } from './copingToolkit';
 import CopingToolkitModal from './components/CopingToolkitModal';
+import { DAYPARTS, suggestDaypart, aggregateThermometer } from './thermometer';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 // Seeded into a new user's own `tags` collection on first load, using these exact
@@ -207,6 +208,39 @@ function MoodTimeline({ entries, tagMap, days = 14 }) {
   );
 }
 
+// ── Thermometer Grid (average intensity per trait × daypart, 14 days) ─────────
+function ThermometerGrid({ moodChecks, traitIds, tagMap, dayparts, t }) {
+  const data = aggregateThermometer(moodChecks, traitIds);
+  const activeTraits = traitIds.filter(id => tagMap[id] && dayparts.some(dp => data[id][dp] != null));
+  if (activeTraits.length === 0) return null;
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `76px repeat(${dayparts.length}, 1fr)`, rowGap: 7, columnGap: 4, alignItems: 'center' }}>
+      <div/>
+      {dayparts.map(dp => <div key={dp} className="thermo-grid-head">{t.dayparts[dp]}</div>)}
+      {activeTraits.map(tid => {
+        const tg = tagMap[tid];
+        return (
+          <Fragment key={tid}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 6 }}>
+              {tg.emoji} {tg.label}
+            </div>
+            {dayparts.map(dp => {
+              const v = data[tid][dp];
+              return (
+                <div key={dp} className="thermo-cell" title={v != null ? `${v.toFixed(1)}/10` : ''} style={{
+                  background: v != null ? tg.color : 'var(--surface2)',
+                  opacity: v != null ? 0.3 + 0.7 * (v / 10) : 1,
+                  border: v != null ? 'none' : '1px solid var(--border)',
+                }}/>
+              );
+            })}
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── CSS ────────────────────────────────────────────────────────────────────────
 
 // ── Auth Screen ────────────────────────────────────────────────────────────────
@@ -346,6 +380,9 @@ export default function App() {
   const [behaviorAutoFilled,setBehaviorAutoFilled] = useState(false);
   const [expandedTechnique, setExpandedTechnique]  = useState(null);
   const [showCopingToolkit, setShowCopingToolkit]  = useState(false);
+  const [moodChecks,    setMoodChecks]    = useState([]);
+  const [thermoDaypart, setThermoDaypart] = useState(() => suggestDaypart());
+  const [thermoRatings, setThermoRatings] = useState({});
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
   const [confirmAction, setConfirmAction] = useState(null);
@@ -370,11 +407,12 @@ export default function App() {
 
   // ── Firestore listeners ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!user) { setBehaviors([]); setEntries([]); setTags([]); setTagsLoaded(false); setUserProfile(null); setProfileLoaded(false); return; }
+    if (!user) { setBehaviors([]); setEntries([]); setTags([]); setTagsLoaded(false); setUserProfile(null); setProfileLoaded(false); setMoodChecks([]); return; }
     const bRef = collection(db, 'users', user.uid, 'behaviors');
     const eRef = query(collection(db, 'users', user.uid, 'entries'), orderBy('timestamp', 'desc'));
     const tRef = collection(db, 'users', user.uid, 'tags');
     const uRef = doc(db, 'users', user.uid);
+    const mRef = collection(db, 'users', user.uid, 'moodChecks');
     const onListenerError = (name, err) => {
       console.error(`${name} listener failed:`, err);
       toast(STRINGS[uiLang].toastError, 'error');
@@ -383,7 +421,8 @@ export default function App() {
     const unsubE = onSnapshot(eRef, snap => setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() }))), err => onListenerError('Entry', err));
     const unsubT = onSnapshot(tRef, snap => { setTags(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setTagsLoaded(true); }, err => onListenerError('Tag', err));
     const unsubU = onSnapshot(uRef, snap => { setUserProfile(snap.exists() ? snap.data() : {}); setProfileLoaded(true); }, err => onListenerError('Profile', err));
-    return () => { unsubB(); unsubE(); unsubT(); unsubU(); };
+    const unsubM = onSnapshot(mRef, snap => setMoodChecks(snap.docs.map(d => ({ id: d.id, ...d.data() }))), err => onListenerError('Mood check', err));
+    return () => { unsubB(); unsubE(); unsubT(); unsubU(); unsubM(); };
   }, [toast, uiLang, user?.uid]);
 
   // ── Seed default tags once, for accounts that skip onboarding without picking any ──
@@ -644,12 +683,26 @@ export default function App() {
       toast(t.toastError, 'error');
     }
   }
+  const setThermoRating = (tagId, value) => setThermoRatings(p => ({ ...p, [tagId]: value }));
+  async function saveMoodCheck() {
+    if (Object.keys(thermoRatings).length === 0 || !user) return;
+    try {
+      await addDoc(collection(db, 'users', user.uid, 'moodChecks'), {
+        timestamp: Date.now(), daypart: thermoDaypart, ratings: thermoRatings, createdAt: serverTimestamp(),
+      });
+      setThermoRatings({});
+      toast(t.thermometerSaved, 'success');
+    } catch (err) {
+      console.error('Mood check save failed:', err);
+      toast(t.toastError, 'error');
+    }
+  }
   const requestConfirmation = (kind, id) => setConfirmAction({ kind, id });
   async function deleteAccountData(allowReauth = true) {
     if (!user) return;
     setDeletingAccount(true);
     try {
-      for (const name of ['behaviors', 'tags', 'entries']) {
+      for (const name of ['behaviors', 'tags', 'entries', 'moodChecks']) {
         const snap = await getDocs(collection(db, 'users', user.uid, name));
         for (let i = 0; i < snap.docs.length; i += 400) {
           const batch = writeBatch(db);
@@ -727,7 +780,7 @@ export default function App() {
   function exportJson() {
     const payload = {
       exportedAt: new Date().toISOString(), version: 1,
-      profile: userProfile || {}, behaviors, tags, entries,
+      profile: userProfile || {}, behaviors, tags, entries, moodChecks,
     };
     downloadFile(JSON.stringify(payload, null, 2), 'application/json', `behave-export-${new Date().toISOString().slice(0, 10)}.json`);
   }
@@ -926,6 +979,34 @@ export default function App() {
             </button>
           </div>
         )}
+        {EMOTION_TAGS.some(id => TAG_MAP[id]) && (
+          <div className="card">
+            <div className="card-title">🌡️ {t.thermometer}</div>
+            <p className="onb-body" style={{ marginBottom: 12 }}>{t.thermometerIntro}</p>
+            <div className="filter-bar" style={{ marginBottom: 14 }}>
+              {DAYPARTS.map(dp => (
+                <div key={dp} className={`chip ${thermoDaypart === dp ? 'on' : ''}`} onClick={() => setThermoDaypart(dp)}>{t.dayparts[dp]}</div>
+              ))}
+            </div>
+            {EMOTION_TAGS.filter(id => TAG_MAP[id]).map(id => {
+              const tg = TAG_MAP[id];
+              const value = thermoRatings[id] ?? 0;
+              return (
+                <div key={id} className="thermo-row">
+                  <div className="thermo-row-head">
+                    <span style={{ color: tg.color, fontWeight: 700 }}>{tg.emoji} {tg.label}</span>
+                    <span className="thermo-value" style={{ color: tg.color }}>{thermoRatings[id] ?? '—'}</span>
+                  </div>
+                  <input type="range" min="0" max="10" value={value} style={{ accentColor: tg.color }}
+                    onChange={e => setThermoRating(id, Number(e.target.value))}/>
+                </div>
+              );
+            })}
+            <button className="btn btn-primary btn-full" style={{ marginTop: 6 }} onClick={saveMoodCheck} disabled={Object.keys(thermoRatings).length === 0}>
+              {t.thermometerSave}
+            </button>
+          </div>
+        )}
         <div className="filter-bar">
           <div className={`chip ${fBehavior === 'all' ? 'on' : ''}`} onClick={() => setFBehavior('all')}>{t.all}</div>
           {behaviors.map(b => <div key={b.id} className={`chip ${fBehavior === b.id ? 'on' : ''}`} onClick={() => setFBehavior(b.id)}>{b.label}</div>)}
@@ -986,6 +1067,12 @@ export default function App() {
               <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-dim)' }}>{t.d14ago}</span>
               <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-dim)' }}>{t.today}</span>
             </div>
+          </div>
+        )}
+        {moodChecks.length > 0 && (
+          <div className="card">
+            <div className="card-title">{t.thermometerChartTitle}</div>
+            <ThermometerGrid moodChecks={moodChecks} traitIds={EMOTION_TAGS} tagMap={TAG_MAP} dayparts={DAYPARTS} t={t}/>
           </div>
         )}
         <div className="stat-grid">

@@ -142,6 +142,14 @@ export const CSS = `
   .tag.auto { border-style: dashed; }
   .technique-howto { font-size: 0.82rem; color: var(--text-muted); font-weight: 500; line-height: 1.55; margin-top: 10px; }
   .auto-hint { font-size: 0.74rem; color: var(--text-dim); font-weight: 600; margin-top: 6px; }
+
+  /* Thermometer */
+  .thermo-row { margin-bottom: 14px; }
+  .thermo-row-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem; margin-bottom: 4px; }
+  .thermo-value { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .thermo-row input[type="range"] { width: 100%; height: 22px; cursor: pointer; background: transparent; }
+  .thermo-grid-head { font-size: 0.62rem; font-weight: 800; color: var(--text-dim); text-align: center; text-transform: uppercase; letter-spacing: 0.3px; }
+  .thermo-cell { aspect-ratio: 1; border-radius: 4px; }
   .tag-inline-btn { background: none; border: none; color: inherit; opacity: 0.6; cursor: pointer; display: inline-flex; padding: 2px; margin-left: 1px; border-radius: 4px; transition: opacity 0.15s; }
   .tag-inline-btn:hover { opacity: 1; }
   .tag-inline-btn svg { width: 13px; height: 13px; }

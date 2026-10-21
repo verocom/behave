@@ -1393,12 +1393,12 @@ export default function App() {
 
         {/* First-login onboarding: suggest behaviors & replacement tags */}
         {showOnboarding && (
-          <div className="overlay">
-            <div ref={onboardingModalRef} className="modal" role="dialog" aria-modal="true" aria-label={t.onboarding.step1Title}>
-              <div className="modal-handle"/>
-              <div className="onb-dots">
-                {[1, 2].map(n => <div key={n} className={`onb-dot ${onbStep === n ? 'on' : ''}`}/>)}
-              </div>
+          <div ref={onboardingModalRef} className="onb-screen" role="dialog" aria-modal="true" aria-label={t.onboarding.step1Title}
+            style={{ background: onbStep === 1 ? 'var(--bg)' : 'var(--warm-flat-bg)' }}>
+            <div className="onb-dots">
+              {[1, 2].map(n => <div key={n} className={`onb-dot ${onbStep === n ? 'on' : ''}`}/>)}
+            </div>
+            <div className="onb-screen-body">
               {onbStep === 1 && (
                 <>
                   <div className="onb-emoji">🌱</div>

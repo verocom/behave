@@ -367,7 +367,6 @@ export default function App() {
   const [onbBehaviors,    setOnbBehaviors]    = useState([]);
   const [onbCustomBehavior,   setOnbCustomBehavior]   = useState('');
   const [onbSaving,       setOnbSaving]       = useState(false);
-  const [forceOnboarding, setForceOnboarding] = useState(false);
   const [autoTagIds,        setAutoTagIds]        = useState([]);
   const [dismissedAutoTags, setDismissedAutoTags] = useState([]);
   const [behaviorAutoFilled,setBehaviorAutoFilled] = useState(false);
@@ -385,6 +384,7 @@ export default function App() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteNeedsReauth, setDeleteNeedsReauth] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [resettingApp, setResettingApp] = useState(false);
   const { toast } = useToast();
   const recRef = useRef(null);
   const latestRef = useRef({ toast, t: null });
@@ -470,7 +470,7 @@ export default function App() {
   const TAG_MAP = Object.fromEntries(tags.map(tg => [tg.id, tg]));
 
   // ── Onboarding (first login: suggest behaviors & replacement tags) ─────────
-  const showOnboarding = !!user && profileLoaded && (forceOnboarding || (!userProfile?.onboarded && behaviors.length === 0 && entries.length === 0));
+  const showOnboarding = !!user && profileLoaded && !userProfile?.onboarded && behaviors.length === 0 && entries.length === 0;
   const existingBehaviorLabels = new Set(behaviors.map(b => b.label));
   const onbSuggestedBehaviors = SUGGESTED_BEHAVIORS.filter(s => !existingBehaviorLabels.has(t.onboarding.behaviors[s.id]));
   const toggleOnbBehavior = id => setOnbBehaviors(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
@@ -478,14 +478,8 @@ export default function App() {
     setOnbStep(1);
     setOnbBehaviors([]); setOnbCustomBehavior('');
   }
-  function replayOnboarding() {
-    setOnbStep(1);
-    setOnbBehaviors([]); setOnbCustomBehavior('');
-    setForceOnboarding(true);
-  }
   async function skipOnboarding() {
     if (!user) return;
-    setForceOnboarding(false);
     resetOnboardingForm();
     try { await setDoc(doc(db, 'users', user.uid), { onboarded: true }, { merge: true }); }
     catch (err) { console.error('Onboarding skip failed:', err); toast(t.toastError, 'error'); }
@@ -510,7 +504,6 @@ export default function App() {
       // (tag seeding happens via the "skip onboarding" fallback effect once onboarded=true;
       // favoriteReplacements starts empty and fills in from the Coping Toolkit / quick check).
       await setDoc(doc(db, 'users', user.uid), { onboarded: true }, { merge: true });
-      setForceOnboarding(false);
       resetOnboardingForm();
     } catch (err) {
       console.error('Onboarding save failed:', err);
@@ -678,6 +671,29 @@ export default function App() {
     }
   }
   const requestConfirmation = (kind, id) => setConfirmAction({ kind, id });
+  async function resetAppData() {
+    if (!user) return;
+    setResettingApp(true);
+    try {
+      for (const name of ['behaviors', 'tags', 'entries', 'moodChecks']) {
+        const snap = await getDocs(collection(db, 'users', user.uid, name));
+        for (let i = 0; i < snap.docs.length; i += 400) {
+          const batch = writeBatch(db);
+          snap.docs.slice(i, i + 400).forEach(item => batch.delete(item.ref));
+          await batch.commit();
+        }
+      }
+      await setDoc(doc(db, 'users', user.uid), { onboarded: false, favoriteReplacements: [] }, { merge: true });
+      setConfirmAction(null);
+      setView('today');
+      toast(t.appReset, 'success');
+    } catch (err) {
+      console.error('App reset failed:', err);
+      toast(t.toastError, 'error');
+    } finally {
+      setResettingApp(false);
+    }
+  }
   async function deleteAccountData(allowReauth = true) {
     if (!user) return;
     setDeletingAccount(true);
@@ -870,7 +886,7 @@ export default function App() {
   }, [entryForm.replacement, showEntry, editingEntryId]);
   const behaviorModalRef = useModalA11y(showNewB, () => setShowNewB(false));
   const tagModalRef = useModalA11y(showNewTag, () => setShowNewTag(false));
-  const onboardingModalRef = useModalA11y(showOnboarding, () => setForceOnboarding(false));
+  const onboardingModalRef = useModalA11y(showOnboarding, () => {});
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = (() => {
@@ -1193,7 +1209,7 @@ export default function App() {
         </div>
       </div>
       <div className="card">
-        <button className="btn btn-ghost btn-full" onClick={replayOnboarding}>🌱 {t.onboarding.replay}</button>
+        <button className="btn btn-ghost btn-full" onClick={() => setConfirmAction({ kind: 'resetApp' })}>🌱 {t.resetAppButton}</button>
       </div>
       <div className="card">
         <button className="btn btn-ghost btn-full" onClick={signOutUser}><LogoutIcon/> {t.signOut}</button>
@@ -1420,7 +1436,7 @@ export default function App() {
           </div>
         )}
         <ConfirmSheet
-          open={!!confirmAction && confirmAction.kind !== 'account'}
+          open={confirmAction?.kind === 'entry' || confirmAction?.kind === 'behavior' || confirmAction?.kind === 'tag'}
           title={confirmAction?.kind === 'entry' ? t.deleteEntryTitle : confirmAction?.kind === 'behavior' ? t.deleteBehaviorTitle : t.deleteTagTitle}
           body={confirmAction?.kind === 'entry' ? t.deleteEntryBody : confirmAction?.kind === 'behavior' ? t.deleteBehaviorBody : t.deleteTagBody}
           confirmLabel={t.deleteLabel}
@@ -1434,6 +1450,17 @@ export default function App() {
             if (action?.kind === 'behavior') await delBehavior(action.id);
             if (action?.kind === 'tag') await delTag(action.id);
           }}
+        />
+        <ConfirmSheet
+          open={confirmAction?.kind === 'resetApp'}
+          title={t.resetAppTitle}
+          body={t.resetAppBody}
+          confirmLabel={resettingApp ? t.resettingApp : t.resetAppButton}
+          cancelLabel={t.cancel}
+          danger
+          disabled={resettingApp}
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={resetAppData}
         />
         <ConfirmSheet
           open={confirmAction?.kind === 'account'}

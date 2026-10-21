@@ -139,6 +139,9 @@ export const CSS = `
   .tag { display: inline-flex; align-items: center; gap: 4px; padding: 8px 13px; min-height: 36px; border-radius: 100px; font-size: 0.76rem; font-weight: 700; border: 1.5px solid transparent; cursor: pointer; transition: all 0.15s; user-select: none; -webkit-tap-highlight-color: transparent; }
   .tag:active { transform: scale(0.94); }
   .tag.off { opacity: 0.38; } .tag.readonly { cursor: default; opacity: 1; }
+  .tag.auto { border-style: dashed; }
+  .technique-howto { font-size: 0.82rem; color: var(--text-muted); font-weight: 500; line-height: 1.55; margin-top: 10px; }
+  .auto-hint { font-size: 0.74rem; color: var(--text-dim); font-weight: 600; margin-top: 6px; }
   .tag-inline-btn { background: none; border: none; color: inherit; opacity: 0.6; cursor: pointer; display: inline-flex; padding: 2px; margin-left: 1px; border-radius: 4px; transition: opacity 0.15s; }
   .tag-inline-btn:hover { opacity: 1; }
   .tag-inline-btn svg { width: 13px; height: 13px; }

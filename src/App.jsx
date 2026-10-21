@@ -18,6 +18,9 @@ import LegalSheet from './components/LegalSheet';
 import { PRIVACY, TERMS } from './legal';
 import { useModalA11y } from './hooks/useModalA11y';
 import { registerSW } from 'virtual:pwa-register';
+import { matchTags, matchBehavior, getTimeOfDayTag } from './autoTag';
+import { suggestTechniques, COPING_TECHNIQUES } from './copingToolkit';
+import CopingToolkitModal from './components/CopingToolkitModal';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 // Seeded into a new user's own `tags` collection on first load, using these exact
@@ -48,7 +51,13 @@ const SUGGESTED_BEHAVIORS = [
   { id: 'socialMedia', cost: 0 }, { id: 'videoGames', cost: 0 },
   { id: 'nailBiting', cost: 0 }, { id: 'procrastination', cost: 0 },
 ];
-const SUGGESTED_REPLACEMENTS = ['walk', 'callFriend', 'drinkWater', 'breathe', 'journal', 'stretch', 'music', 'outside'];
+const SUGGESTED_REPLACEMENTS = ['walk', 'callFriend', 'drinkWater', 'journal', 'stretch', 'music', 'outside'];
+// DBT techniques offered alongside the generic replacements above in onboarding step 3 —
+// one per coping-toolkit category, picked for being the most actionable in an acute moment.
+const ONBOARDING_COPING_IDS = ['tipp', 'selfSoothe5', 'stop', 'oppositeAction', 'wiseMind', 'improve'];
+// Translated onboarding behavior labels in every supported language, used by matchBehavior()
+// to recognize a behavior regardless of which language it was originally seeded in.
+const ONBOARDING_BEHAVIOR_LABELS = { en: STRINGS.en.onboarding.behaviors, fr: STRINGS.fr.onboarding.behaviors, es: STRINGS.es.onboarding.behaviors };
 
 const LANGS = [
   { code: 'en-US', flag: '🇺🇸', label: 'English (US)' },
@@ -332,6 +341,11 @@ export default function App() {
   const [onbCustomTag,    setOnbCustomTag]    = useState('');
   const [onbSaving,       setOnbSaving]       = useState(false);
   const [forceOnboarding, setForceOnboarding] = useState(false);
+  const [autoTagIds,        setAutoTagIds]        = useState([]);
+  const [dismissedAutoTags, setDismissedAutoTags] = useState([]);
+  const [behaviorAutoFilled,setBehaviorAutoFilled] = useState(false);
+  const [expandedTechnique, setExpandedTechnique]  = useState(null);
+  const [showCopingToolkit, setShowCopingToolkit]  = useState(false);
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
   const [confirmAction, setConfirmAction] = useState(null);
@@ -428,7 +442,8 @@ export default function App() {
   const existingTagIds = new Set(tags.map(tg => tg.id));
   const existingReplacementLabels = new Set(userProfile?.favoriteReplacements || []);
   const onbSuggestedBehaviors = SUGGESTED_BEHAVIORS.filter(s => !existingBehaviorLabels.has(t.onboarding.behaviors[s.id]));
-  const onbSuggestedReplacements = SUGGESTED_REPLACEMENTS.filter(id => !existingReplacementLabels.has(t.onboarding.replacements[id]));
+  const replacementLabelFor = id => t.onboarding.replacements[id] || t.copingTechniques[id]?.title || id;
+  const onbSuggestedReplacements = [...SUGGESTED_REPLACEMENTS, ...ONBOARDING_COPING_IDS].filter(id => !existingReplacementLabels.has(replacementLabelFor(id)));
   const onbSuggestedTags = DEFAULT_TAGS.filter(tg => !existingTagIds.has(tg.id));
   const toggleOnbBehavior = id => setOnbBehaviors(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   const toggleOnbReplacement = id => setOnbReplacements(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
@@ -469,7 +484,7 @@ export default function App() {
           label: onbCustomBehavior.trim(), cost: 0, createdAt: serverTimestamp(),
         }));
       }
-      const replacementLabels = onbReplacements.map(id => t.onboarding.replacements[id] || id);
+      const replacementLabels = onbReplacements.map(id => replacementLabelFor(id));
       if (onbCustomReplacement.trim()) replacementLabels.push(onbCustomReplacement.trim());
       const tagWrites = onbTags.map(id => {
         const def = DEFAULT_TAGS.find(dt => dt.id === id);
@@ -748,6 +763,26 @@ export default function App() {
       toast(t.toastError, 'error');
     }
   }
+  async function toggleStreakEnabled() {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'users', user.uid), { streakEnabled: !userProfile?.streakEnabled }, { merge: true });
+    } catch (err) {
+      console.error('Streak toggle failed:', err);
+      toast(t.toastError, 'error');
+    }
+  }
+  async function toggleFavoriteReplacement(label) {
+    if (!user) return;
+    const current = userProfile?.favoriteReplacements || [];
+    const next = current.includes(label) ? current.filter(r => r !== label) : [...current, label];
+    try {
+      await setDoc(doc(db, 'users', user.uid), { favoriteReplacements: next }, { merge: true });
+    } catch (err) {
+      console.error('Favorite replacement toggle failed:', err);
+      toast(t.toastError, 'error');
+    }
+  }
   function openDeleteAccount() {
     const providerIds = auth.currentUser?.providerData?.map(provider => provider.providerId) || [];
     setDeleteWord('');
@@ -756,9 +791,50 @@ export default function App() {
     setConfirmAction({ kind: 'account' });
   }
   const toggleCheckinTag = id => setCheckinTags(p => p.includes(id) ? p.filter(t => t !== id) : [...p, id]);
-  const toggleTag = id => setEntryForm(p => ({ ...p, tags: p.tags.includes(id) ? p.tags.filter(t => t !== id) : [...p.tags, id] }));
-  const closeEntry = () => { setShowEntry(false); stopRec(); setTranscript(''); setEntryForm({ behaviorId: '', tags: [], replacement: '', note: '' }); setEditingEntryId(null); };
+  const toggleTag = id => {
+    setEntryForm(p => ({ ...p, tags: p.tags.includes(id) ? p.tags.filter(t => t !== id) : [...p.tags, id] }));
+    if (autoTagIds.includes(id)) setDismissedAutoTags(p => [...p, id]);
+  };
+  const closeEntry = () => {
+    setShowEntry(false); stopRec(); setTranscript(''); setEntryForm({ behaviorId: '', tags: [], replacement: '', note: '' }); setEditingEntryId(null);
+    setAutoTagIds([]); setDismissedAutoTags([]); setBehaviorAutoFilled(false); setExpandedTechnique(null);
+  };
   const entryModalRef = useModalA11y(showEntry, closeEntry);
+
+  // ── Auto-tag & auto-behavior detection from the transcript (new entries only) ──
+  useEffect(() => {
+    if (!showEntry || editingEntryId) return;
+    const h = setTimeout(() => {
+      const textTags = matchTags(transcript, uiLang);
+      const timeTag = getTimeOfDayTag();
+      const proposed = [...new Set([...textTags, timeTag])].filter(id => TAG_MAP[id] && !dismissedAutoTags.includes(id));
+      if (proposed.length) {
+        setAutoTagIds(proposed);
+        setEntryForm(p => ({ ...p, tags: [...new Set([...p.tags, ...proposed])] }));
+      }
+      if (behaviors.length && (entryForm.behaviorId === '' || behaviorAutoFilled)) {
+        const guess = matchBehavior(transcript, behaviors, uiLang, ONBOARDING_BEHAVIOR_LABELS);
+        if (guess) { setEntryForm(p => ({ ...p, behaviorId: guess })); setBehaviorAutoFilled(true); }
+      }
+    }, 500);
+    return () => clearTimeout(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transcript, showEntry, editingEntryId, uiLang]);
+
+  // The "replaced" tag is derived deterministically from the replacement field, not guessed from text.
+  useEffect(() => {
+    if (!showEntry || editingEntryId) return;
+    const hasReplacement = entryForm.replacement.trim().length > 0;
+    const hasTag = entryForm.tags.includes('replaced');
+    if (hasReplacement && !hasTag && TAG_MAP.replaced && !dismissedAutoTags.includes('replaced')) {
+      setAutoTagIds(p => [...new Set([...p, 'replaced'])]);
+      setEntryForm(p => ({ ...p, tags: [...p.tags, 'replaced'] }));
+    } else if (!hasReplacement && hasTag && autoTagIds.includes('replaced')) {
+      setEntryForm(p => ({ ...p, tags: p.tags.filter(id => id !== 'replaced') }));
+      setAutoTagIds(p => p.filter(id => id !== 'replaced'));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entryForm.replacement, showEntry, editingEntryId]);
   const behaviorModalRef = useModalA11y(showNewB, () => setShowNewB(false));
   const tagModalRef = useModalA11y(showNewTag, () => setShowNewTag(false));
   const onboardingModalRef = useModalA11y(showOnboarding, () => setForceOnboarding(false));
@@ -774,10 +850,36 @@ export default function App() {
     const last7 = es.filter(e => e.timestamp > now - 7 * 86400000).length;
     const prev7 = es.filter(e => e.timestamp > now - 14 * 86400000 && e.timestamp <= now - 7 * 86400000).length;
     const tagCounts = {};
-    es.forEach(e => e.tags?.forEach(t => { tagCounts[t] = (tagCounts[t] || 0) + 1; }));
+    es.forEach(e => e.tags?.forEach(tagId => { tagCounts[tagId] = (tagCounts[tagId] || 0) + 1; }));
     const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const byBehavior = behaviors.map(b => ({ ...b, count: es.filter(e => e.behaviorId === b.id).length }));
-    return { total, totalCost, replaced, savedCost, last7, prev7, trend: last7 - prev7, topTags, byBehavior };
+    // Regulation rate: share of recent entries where a replacement behavior was used instead of the tracked one.
+    const replacedLast7 = es.filter(e => e.timestamp > now - 7 * 86400000 && e.tags?.includes('replaced')).length;
+    const replacedPrev7 = es.filter(e => e.timestamp > now - 14 * 86400000 && e.timestamp <= now - 7 * 86400000 && e.tags?.includes('replaced')).length;
+    const regRateLast7 = last7 ? replacedLast7 / last7 : null;
+    const regRatePrev7 = prev7 ? replacedPrev7 / prev7 : null;
+    const regTrend = (regRateLast7 ?? 0) - (regRatePrev7 ?? 0);
+    // Techniques used: counts entries whose replacement text exactly matches a coping-toolkit title.
+    const techCounts = {};
+    es.forEach(e => {
+      const match = COPING_TECHNIQUES.find(tc => t.copingTechniques[tc.id]?.title === e.replacement);
+      if (match) techCounts[match.id] = (techCounts[match.id] || 0) + 1;
+    });
+    const topTechniques = Object.entries(techCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    // Day streak (opt-in, see .streak stat tile): auto-hidden below when too many recent days were missed.
+    const entryDays = new Set(es.map(e => new Date(e.timestamp).toISOString().slice(0, 10)));
+    let streak = 0;
+    const cursor = new Date();
+    while (entryDays.has(cursor.toISOString().slice(0, 10))) { streak++; cursor.setDate(cursor.getDate() - 1); }
+    let missedLast14 = 0;
+    for (let i = 0; i < 14; i++) {
+      const day = new Date(); day.setDate(day.getDate() - i);
+      if (!entryDays.has(day.toISOString().slice(0, 10))) missedLast14++;
+    }
+    return {
+      total, totalCost, replaced, savedCost, last7, prev7, trend: last7 - prev7, topTags, byBehavior,
+      regRateLast7, regTrend, topTechniques, streak, missedLast14,
+    };
   })();
 
   const filtered = entries.filter(e => {
@@ -808,6 +910,15 @@ export default function App() {
                   <option value="">{t.checkinNoBehavior}</option>
                   {behaviors.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
                 </select>
+              </div>
+            )}
+            {suggestTechniques(checkinTags).length > 0 && (
+              <div className="tags" style={{ marginBottom: 12 }}>
+                {suggestTechniques(checkinTags).map(tc => (
+                  <span key={tc.id} className="tag readonly" style={{ background: 'var(--accent-light)', borderColor: 'var(--accent)', color: 'var(--accent-deep)' }}>
+                    💡 {t.copingTechniques[tc.id].title}
+                  </span>
+                ))}
               </div>
             )}
             <button className="btn btn-primary btn-full" onClick={quickLog} disabled={checkinTags.length === 0}>
@@ -882,6 +993,17 @@ export default function App() {
           <div className="stat"><div className={`stat-val ${s.trend < 0 ? 'success' : s.trend > 0 ? 'danger' : ''}`}>{s.last7}{s.trend < 0 ? ' ↓' : s.trend > 0 ? ' ↑' : ''}</div><div className="stat-label">{t.thisWeek}</div></div>
           <div className="stat"><div className="stat-val success">{s.total ? Math.round((s.replaced / s.total) * 100) : 0}%</div><div className="stat-label">{t.replaced}</div></div>
           <div className="stat"><div className="stat-val warm">{formatMoney(s.totalCost, locale, currency)}</div><div className="stat-label">{t.estCost}</div></div>
+          {s.last7 > 0 && (
+            <div className="stat">
+              <div className={`stat-val ${s.regTrend > 0 ? 'success' : s.regTrend < 0 ? 'danger' : ''}`}>
+                {Math.round((s.regRateLast7 ?? 0) * 100)}%{s.regTrend > 0 ? ' ↑' : s.regTrend < 0 ? ' ↓' : ''}
+              </div>
+              <div className="stat-label">{t.regulationRate}</div>
+            </div>
+          )}
+          {userProfile?.streakEnabled && s.missedLast14 < 5 && (
+            <div className="stat"><div className="stat-val">{s.streak}</div><div className="stat-label">{t.currentStreak}</div></div>
+          )}
         </div>
         {s.savedCost > 0 && (
           <div className="savings-card">
@@ -900,6 +1022,12 @@ export default function App() {
           <div className="card">
             <div className="card-title">{t.topTriggers}</div>
             {s.topTags.map(([tid, cnt]) => { const tg = TAG_MAP[tid]; if (!tg) return null; return <div key={tid} className="bar-row"><div className="bar-label">{tg.emoji} {tg.label}</div><div className="bar-track"><div className="bar-fill" style={{ width: `${(cnt / s.topTags[0][1]) * 100}%`, background: tg.color }}/></div><div className="bar-count">{cnt}</div></div>; })}
+          </div>
+        )}
+        {s.topTechniques.length > 0 && (
+          <div className="card">
+            <div className="card-title">{t.techniquesUsed}</div>
+            {s.topTechniques.map(([tcId, cnt]) => <div key={tcId} className="bar-row"><div className="bar-label">{t.copingTechniques[tcId]?.title}</div><div className="bar-track"><div className="bar-fill" style={{ width: `${(cnt / s.topTechniques[0][1]) * 100}%` }}/></div><div className="bar-count">{cnt}</div></div>)}
           </div>
         )}
         {s.total === 0 && <div className="empty"><div className="empty-icon">📊</div><p>{t.statsEmpty}</p></div>}
@@ -967,6 +1095,13 @@ export default function App() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => setShowLegal('terms')}>{t.terms}</button>
           <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => setShowLegal('privacy')}>{t.privacy}</button>
+        </div>
+      </div>
+      <div className="card">
+        <button className="btn btn-ghost btn-full" style={{ marginBottom: 8 }} onClick={() => setShowCopingToolkit(true)}>🧰 {t.copingToolkit}</button>
+        <div className="behavior-item" style={{ marginBottom: 0 }}>
+          <div className="behavior-name">{t.showStreakToggle}</div>
+          <button className={`lang-chip ${userProfile?.streakEnabled ? 'on' : ''}`} onClick={toggleStreakEnabled}>{userProfile?.streakEnabled ? `✓ ${t.streakOn}` : t.streakOff}</button>
         </div>
       </div>
       <div className="card danger-card">
@@ -1056,8 +1191,8 @@ export default function App() {
                 <button className="btn btn-ghost btn-full" style={{ marginBottom: 14 }} onClick={startRec}><MicIcon/> {recErr ? t.tryAgain : t.recordBtn}</button>
               )}
               <div className="field">
-                <label>{t.behavior} *</label>
-                <select value={entryForm.behaviorId} onChange={e => setEntryForm(p => ({ ...p, behaviorId: e.target.value }))}>
+                <label>{t.behavior} * {behaviorAutoFilled && '✨'}</label>
+                <select value={entryForm.behaviorId} onChange={e => { setEntryForm(p => ({ ...p, behaviorId: e.target.value })); setBehaviorAutoFilled(false); }}>
                   <option value="">{t.select}</option>
                   {behaviors.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
                 </select>
@@ -1066,9 +1201,10 @@ export default function App() {
               <div className="field">
                 <label>{t.contextTriggers}</label>
                 <div className="tags" style={{ marginTop: 4 }}>
-                  {tags.map(tg => <span key={tg.id} className={`tag ${entryForm.tags.includes(tg.id) ? '' : 'off'}`} style={{ background: tg.color + '22', borderColor: tg.color + (entryForm.tags.includes(tg.id) ? '99' : '44'), color: tg.color }} onClick={() => toggleTag(tg.id)}>{tg.emoji} {tg.label}</span>)}
+                  {tags.map(tg => <span key={tg.id} className={`tag ${entryForm.tags.includes(tg.id) ? '' : 'off'} ${autoTagIds.includes(tg.id) ? 'auto' : ''}`} style={{ background: tg.color + '22', borderColor: tg.color + (entryForm.tags.includes(tg.id) ? '99' : '44'), color: tg.color }} onClick={() => toggleTag(tg.id)}>{tg.emoji} {tg.label}</span>)}
                   {tags.length === 0 && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 6, fontWeight: 600 }}>{t.addFirstTag}</div>}
                 </div>
+                {autoTagIds.length > 0 && <div className="auto-hint">{t.autoDetectedHint}</div>}
               </div>
               <div className="field">
                 <label>{t.replacementLabel}</label>
@@ -1079,6 +1215,24 @@ export default function App() {
                       <span key={i} className="tag" style={{ background: 'var(--warm-light)', borderColor: 'var(--warm)', color: 'var(--warm)' }}
                         onClick={() => setEntryForm(p => ({ ...p, replacement: r }))}>{r}</span>
                     ))}
+                  </div>
+                )}
+                {suggestTechniques(entryForm.tags).length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <div className="tags">
+                      {suggestTechniques(entryForm.tags).map(tc => (
+                        <span key={tc.id} className="tag" style={{ background: 'var(--accent-light)', borderColor: 'var(--accent)', color: 'var(--accent-deep)' }}
+                          onClick={() => setExpandedTechnique(p => p === tc.id ? null : tc.id)}>💡 {t.copingTechniques[tc.id].title}</span>
+                      ))}
+                    </div>
+                    {expandedTechnique && t.copingTechniques[expandedTechnique] && (
+                      <div className="technique-howto">
+                        {t.copingTechniques[expandedTechnique].how}
+                        <div style={{ marginTop: 8 }}>
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setEntryForm(p => ({ ...p, replacement: t.copingTechniques[expandedTechnique].title })); setExpandedTechnique(null); }}>{t.useThisTechnique}</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1179,7 +1333,7 @@ export default function App() {
                     {onbSuggestedReplacements.map(id => (
                       <span key={id} className={`tag ${onbReplacements.includes(id) ? '' : 'off'}`}
                         style={{ background: 'var(--warm-light)', borderColor: 'var(--warm)', color: 'var(--warm)' }}
-                        onClick={() => toggleOnbReplacement(id)}>{t.onboarding.replacements[id]}</span>
+                        onClick={() => toggleOnbReplacement(id)}>{replacementLabelFor(id)}</span>
                     ))}
                   </div>
                   <div className="field">
@@ -1256,6 +1410,7 @@ export default function App() {
           )}
         </ConfirmSheet>
         <LegalSheet open={!!showLegal} title={showLegal === 'terms' ? t.terms : t.privacy} sections={showLegal === 'terms' ? TERMS[uiLang] : PRIVACY[uiLang]} closeLabel={t.close} onCancel={() => setShowLegal(null)}/>
+        <CopingToolkitModal open={showCopingToolkit} t={t} favorites={userProfile?.favoriteReplacements} onToggleFavorite={toggleFavoriteReplacement} onCancel={() => setShowCopingToolkit(false)}/>
       </div>
     </>
   );

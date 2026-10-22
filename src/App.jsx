@@ -84,6 +84,20 @@ function formatDate(ts, locale) {
 function formatMoney(n, locale, currency = 'CAD') {
   return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(n || 0);
 }
+function formatLongDate(ts, locale) {
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(new Date(ts));
+}
+// Calls a Limitless+ serverless function as the signed-in user (see /api).
+async function apiPost(path, body = {}) {
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, data };
+}
 function groupByDay(entries) {
   const map = {};
   entries.forEach(e => {
@@ -380,6 +394,11 @@ export default function App() {
   const [showCopingToolkit, setShowCopingToolkit]  = useState(false);
   const [moodChecks,    setMoodChecks]    = useState([]);
   const [entitlement,   setEntitlement]   = useState(null);
+  const [billing,       setBilling]       = useState(null);
+  const [plan,          setPlan]          = useState('yearly');
+  const [billingBusy,   setBillingBusy]   = useState(null);
+  const [accessCode,    setAccessCode]    = useState('');
+  const [codeError,     setCodeError]     = useState('');
   const [openDay,       setOpenDay]       = useState(null);
   const [dayReflection, setDayReflection] = useState('');
   const [savingDay,     setSavingDay]     = useState(false);
@@ -488,6 +507,74 @@ export default function App() {
   const TAG_MAP = Object.fromEntries(tags.map(tg => [tg.id, tg]));
   const isPremium = entitlement?.premium === true && (!entitlement.expiresAt || entitlement.expiresAt > Date.now());
   const programProgress = userProfile?.programProgress || {};
+
+  // ── Limitless+ (Stripe + clinic codes) ────────────────────────────────────
+  // Until the server is configured, /api/billing-status says so (or doesn't exist) and the
+  // screen keeps showing "Available soon".
+  useEffect(() => {
+    if (view !== 'premium' || billing) return;
+    fetch('/api/billing-status')
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => setBilling(data && typeof data === 'object' ? data : { checkout: false, codes: false }))
+      .catch(() => setBilling({ checkout: false, codes: false }));
+  }, [view, billing]);
+
+  // Returning from Stripe Checkout or the billing portal.
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('premium');
+    if (!result) return;
+    params.delete('premium');
+    window.history.replaceState(null, '', `${window.location.pathname}${params.size ? `?${params}` : ''}${window.location.hash}`);
+    if (result === 'success') { setView('premium'); toast(t.checkoutSuccess, 'success'); }
+    else if (result === 'cancel') toast(t.checkoutCancel, 'info');
+    else if (result === 'portal') setView('premium');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
+
+  const startCheckout = async () => {
+    setBillingBusy('checkout');
+    try {
+      const { ok, data } = await apiPost('/api/create-checkout-session', { plan });
+      if (ok && data.url) { window.location.assign(data.url); return; }
+      toast(data.error === 'alreadyPremium' ? t.codeErrors.alreadyPremium : t.toastError, 'error');
+    } catch (err) {
+      console.error('Checkout failed:', err);
+      toast(t.toastError, 'error');
+    }
+    setBillingBusy(null);
+  };
+
+  const openBillingPortal = async () => {
+    setBillingBusy('portal');
+    try {
+      const { ok, data } = await apiPost('/api/create-portal-session');
+      if (ok && data.url) { window.location.assign(data.url); return; }
+      toast(t.toastError, 'error');
+    } catch (err) {
+      console.error('Billing portal failed:', err);
+      toast(t.toastError, 'error');
+    }
+    setBillingBusy(null);
+  };
+
+  const redeemCode = async e => {
+    e.preventDefault();
+    if (!accessCode.trim()) return;
+    setBillingBusy('code');
+    setCodeError('');
+    try {
+      const { ok, data } = await apiPost('/api/redeem-code', { code: accessCode });
+      if (ok) { setAccessCode(''); toast(t.codeRedeemed, 'success'); }
+      else if (t.codeErrors[data.reason]) setCodeError(t.codeErrors[data.reason]);
+      else toast(t.toastError, 'error');
+    } catch (err) {
+      console.error('Code redemption failed:', err);
+      toast(t.toastError, 'error');
+    }
+    setBillingBusy(null);
+  };
   const programCopy = PROGRAM_CONTENT[uiLang];
 
   // ── Onboarding (first login: suggest behaviors & replacement tags) ─────────
@@ -1294,40 +1381,93 @@ export default function App() {
     );
   };
 
-  const renderPremium = () => (
-    <>
-      <div className="premium-hero">
-        <div className="premium-wordmark">Limitless<span>+</span></div>
-        <p className="premium-tagline">{t.premiumTagline}</p>
-      </div>
-      {isPremium && <div className="card mission-card"><div className="insight-row" style={{ padding: 0 }}>{t.premiumActive}</div></div>}
-      <div className="card">
-        <div className="card-title">{t.premiumIncludesTitle}</div>
-        {t.premiumIncludes.map(x => <div key={x} className="check-row"><span className="check-mark">✦</span>{x}</div>)}
-        {!isPremium && (
-          <>
-            <div className="price-row">
-              <div className="price-opt">{t.pricePerMonth(formatMoney(6.99, locale, currency))}</div>
-              <div className="price-opt best">{t.pricePerYear(formatMoney(49, locale, currency))}</div>
-            </div>
-            <div className="btn btn-full btn-soon" aria-disabled="true">{t.premiumCta}</div>
-          </>
+  const renderPremium = () => {
+    const live = billing?.checkout && billing.prices;
+    const priceLabel = p => formatMoney(billing.prices[p].amount, locale, billing.prices[p].currency);
+    let status = null;
+    if (isPremium && entitlement.source === 'clinic') status = t.clinicAccessUntil(formatLongDate(entitlement.expiresAt, locale));
+    else if (isPremium && entitlement.source === 'stripe' && entitlement.periodEnd) {
+      status = (entitlement.cancelAtPeriodEnd ? t.accessUntil : t.renewsOn)(formatLongDate(entitlement.periodEnd, locale));
+    }
+    return (
+      <>
+        <div className="premium-hero">
+          <div className="premium-wordmark">Limitless<span>+</span></div>
+          <p className="premium-tagline">{t.premiumTagline}</p>
+        </div>
+        {isPremium && (
+          <div className="card mission-card">
+            <div className="insight-row" style={{ padding: 0 }}>{t.premiumActive}</div>
+            {status && <p className="premium-status">{status}</p>}
+            {entitlement.source === 'stripe' && entitlement.stripeCustomerId && (
+              <button className="btn btn-ghost btn-full" style={{ marginTop: 12 }} onClick={openBillingPortal} disabled={!!billingBusy}>
+                {billingBusy === 'portal' ? t.redirecting : t.manageSubscription}
+              </button>
+            )}
+          </div>
         )}
-      </div>
-      <div className="card mission-card">
-        <div className="card-title">💙 {t.payItForwardTitle}</div>
-        <p className="onb-body" style={{ margin: 0 }}>{t.payItForward}</p>
-      </div>
-      <div className="card">
-        <div className="card-title">{t.clinicCodeTitle}</div>
-        <p className="onb-body" style={{ margin: 0 }}>{t.clinicCodeBody}</p>
-      </div>
-      <div className="card">
-        <div className="card-title">{t.freeForeverTitle}</div>
-        {t.freeForever.map(x => <div key={x} className="check-row"><span className="check-mark">✓</span>{x}</div>)}
-      </div>
-    </>
-  );
+        <div className="card">
+          <div className="card-title">{t.premiumIncludesTitle}</div>
+          {t.premiumIncludes.map(x => <div key={x} className="check-row"><span className="check-mark">✦</span>{x}</div>)}
+          {!isPremium && (live ? (
+            <>
+              <div className="price-row" role="radiogroup" aria-label={t.premiumIncludesTitle}>
+                {['monthly', 'yearly'].map(p => (
+                  <button key={p} type="button" role="radio" aria-checked={plan === p} className={`price-opt price-choice${plan === p ? ' selected' : ''}`} onClick={() => setPlan(p)}>
+                    {p === 'yearly' && <span className="price-badge">{t.bestValue}</span>}
+                    {(p === 'yearly' ? t.pricePerYear : t.pricePerMonth)(priceLabel(p))}
+                  </button>
+                ))}
+              </div>
+              <button className="btn btn-primary btn-full" onClick={startCheckout} disabled={!!billingBusy}>
+                {billingBusy === 'checkout' ? t.redirecting : (plan === 'yearly' ? t.subscribeYearly : t.subscribeMonthly)(priceLabel(plan))}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="price-row">
+                <div className="price-opt">{t.pricePerMonth(formatMoney(6.99, locale, currency))}</div>
+                <div className="price-opt best">{t.pricePerYear(formatMoney(49, locale, currency))}</div>
+              </div>
+              <div className="btn btn-full btn-soon" aria-disabled="true">{t.premiumCta}</div>
+            </>
+          ))}
+        </div>
+        <div className="card mission-card">
+          <div className="card-title">💙 {t.payItForwardTitle}</div>
+          <p className="onb-body" style={{ margin: 0 }}>{t.payItForward}</p>
+        </div>
+        {!isPremium && (
+          <div className="card">
+            <div className="card-title">{t.clinicCodeTitle}</div>
+            {billing?.codes ? (
+              <form onSubmit={redeemCode}>
+                <p className="onb-body" style={{ margin: '0 0 12px' }}>{t.clinicCodeBodyLive}</p>
+                <div className="field code-field">
+                  <input
+                    type="text" value={accessCode} placeholder="LMT-XXXX-XXXX-XX" aria-label={t.clinicCodeTitle}
+                    autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={24}
+                    aria-invalid={!!codeError} aria-describedby={codeError ? 'code-error' : undefined}
+                    onChange={e => { setAccessCode(e.target.value); setCodeError(''); }}
+                  />
+                  <button type="submit" className="btn btn-primary" disabled={!accessCode.trim() || !!billingBusy}>
+                    {billingBusy === 'code' ? '…' : t.redeemCode}
+                  </button>
+                </div>
+                {codeError && <p id="code-error" className="code-error" role="alert">{codeError}</p>}
+              </form>
+            ) : (
+              <p className="onb-body" style={{ margin: 0 }}>{t.clinicCodeBody}</p>
+            )}
+          </div>
+        )}
+        <div className="card">
+          <div className="card-title">{t.freeForeverTitle}</div>
+          {t.freeForever.map(x => <div key={x} className="check-row"><span className="check-mark">✓</span>{x}</div>)}
+        </div>
+      </>
+    );
+  };
 
   const renderSettings = () => (
     <>
@@ -1803,6 +1943,14 @@ export default function App() {
           onCancel={resetDeleteAccount}
           onConfirm={confirmAccountDeletion}
         >
+          {isPremium && entitlement.source === 'stripe' && !entitlement.cancelAtPeriodEnd && (
+            <div className="sub-warning" role="note">
+              <p>{t.deleteCancelSubFirst}</p>
+              <button type="button" className="btn btn-ghost btn-full" onClick={openBillingPortal} disabled={!!billingBusy}>
+                {billingBusy === 'portal' ? t.redirecting : t.manageSubscription}
+              </button>
+            </div>
+          )}
           <div className="field">
             <label>{t.typeToConfirm.replace('DELETE', t.deleteConfirmWord)}</label>
             <input type="text" value={deleteWord} onChange={event => setDeleteWord(event.target.value)} autoComplete="off"/>

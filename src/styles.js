@@ -187,6 +187,17 @@ export const CSS = `
   .price-row { display: flex; gap: 8px; margin: 16px 0 12px; }
   .price-opt { flex: 1; text-align: center; padding: 12px 8px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); font-weight: 800; font-size: 0.9rem; }
   .price-opt.best { border-color: var(--gold); background: var(--gold-light); }
+  .price-choice { position: relative; background: var(--surface); color: var(--text); font-family: inherit; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+  .price-choice.selected { border-color: var(--accent); background: var(--accent-light); box-shadow: 0 0 0 1px var(--accent); }
+  .price-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .price-badge { position: absolute; top: -9px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--gold); color: #1a1300; font-size: 0.62rem; font-weight: 800; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .premium-status { margin: 6px 0 0; font-size: 0.85rem; font-weight: 700; color: var(--text-muted); }
+  .code-field { display: flex; gap: 8px; margin-bottom: 0; }
+  .code-field input { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+  .code-field .btn { flex-shrink: 0; }
+  .code-error { margin: 8px 0 0; font-size: 0.85rem; font-weight: 700; color: var(--danger); }
+  .sub-warning { margin-bottom: 14px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--gold-light); border: 1.5px solid var(--gold); }
+  .sub-warning p { margin: 0 0 10px; font-size: 0.88rem; font-weight: 700; color: var(--text); }
   .btn-soon { background: var(--surface2); color: var(--text-muted); border: 1.5px dashed var(--border); cursor: default; }
   .mission-card { background: var(--warm-flat-bg); }
   .premium-teaser { font-family: var(--font-display); font-size: 1rem; font-weight: 700; line-height: 1.35; background: var(--gold-flat-bg); }

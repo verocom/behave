@@ -22,6 +22,7 @@ import { matchTags, matchBehavior, getTimeOfDayTag } from './autoTag';
 import { suggestTechniques, COPING_TECHNIQUES } from './copingToolkit';
 import CopingToolkitModal from './components/CopingToolkitModal';
 import { DAYPARTS, suggestDaypart, aggregateThermometer, waterLevelY } from './thermometer';
+import { CHALLENGES, relevantTagIds, sortBehaviorsByChallenges } from './challenges';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 // Seeded into a new user's own `tags` collection on first load, using these exact
@@ -44,6 +45,8 @@ const DEFAULT_TAGS = [
   { id: 'replaced',      emoji: '✅', color: '#4A9E68' },
   { id: 'strongcraving', emoji: '🔥', color: '#C45040' },
 ];
+// Context/time tags always seeded; emotion tags are narrowed to the user's onboarding challenges.
+const STRUCTURAL_TAG_IDS = ['social', 'alone', 'work', 'home', 'morning', 'afternoon', 'evening', 'night', 'replaced'];
 
 // Offered as one-tap picks in the first-login onboarding flow (src/i18n.js → onboarding.behaviors/replacements)
 const SUGGESTED_BEHAVIORS = [
@@ -390,6 +393,13 @@ export default function App() {
   const [onbBehaviors,    setOnbBehaviors]    = useState([]);
   const [onbCustomBehavior,   setOnbCustomBehavior]   = useState('');
   const [onbSaving,       setOnbSaving]       = useState(false);
+  const [onbChallengeStage, setOnbChallengeStage] = useState('list');
+  const [onbQuizIndex,    setOnbQuizIndex]    = useState(0);
+  const [onbChallenges,   setOnbChallenges]   = useState([]);
+  const [onbDiagnosisNote, setOnbDiagnosisNote] = useState('');
+  const [showOnbDiagnosis, setShowOnbDiagnosis] = useState(false);
+  const [showSettingsDiagnosis, setShowSettingsDiagnosis] = useState(false);
+  const [diagnosisDraft,  setDiagnosisDraft]  = useState('');
   const [autoTagIds,        setAutoTagIds]        = useState([]);
   const [dismissedAutoTags, setDismissedAutoTags] = useState([]);
   const [behaviorAutoFilled,setBehaviorAutoFilled] = useState(false);
@@ -450,7 +460,9 @@ export default function App() {
       try {
         const uSnap = await getDoc(uRef);
         if (uSnap.exists() && uSnap.data().tagsSeeded) return;
-        await Promise.all(DEFAULT_TAGS.map(tg => setDoc(doc(db, 'users', user.uid, 'tags', tg.id), {
+        const challengeTags = relevantTagIds(userProfile?.challenges);
+        const seedIds = new Set([...STRUCTURAL_TAG_IDS, ...(challengeTags.length ? challengeTags : EMOTION_TAGS)]);
+        await Promise.all(DEFAULT_TAGS.filter(tg => seedIds.has(tg.id)).map(tg => setDoc(doc(db, 'users', user.uid, 'tags', tg.id), {
           label: STRINGS[uiLang].tags[tg.id] || tg.id, emoji: tg.emoji, color: tg.color, createdAt: serverTimestamp(),
         })));
         await setDoc(uRef, { tagsSeeded: true }, { merge: true });
@@ -459,7 +471,7 @@ export default function App() {
         toast(t.toastError, 'error');
       }
     })();
-  }, [toast, uiLang, user, tagsLoaded, tags.length, profileLoaded, userProfile?.onboarded]);
+  }, [toast, uiLang, user, tagsLoaded, tags.length, profileLoaded, userProfile?.onboarded, userProfile?.challenges]);
 
   // ── Dark mode ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -495,11 +507,28 @@ export default function App() {
   // ── Onboarding (first login: suggest behaviors & replacement tags) ─────────
   const showOnboarding = !!user && profileLoaded && !userProfile?.onboarded && behaviors.length === 0 && entries.length === 0;
   const existingBehaviorLabels = new Set(behaviors.map(b => b.label));
-  const onbSuggestedBehaviors = SUGGESTED_BEHAVIORS.filter(s => !existingBehaviorLabels.has(t.onboarding.behaviors[s.id]));
+  const onbSuggestedBehaviors = sortBehaviorsByChallenges(
+    SUGGESTED_BEHAVIORS.filter(s => !existingBehaviorLabels.has(t.onboarding.behaviors[s.id])),
+    onbChallenges,
+  );
   const toggleOnbBehavior = id => setOnbBehaviors(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const toggleOnbChallenge = id => setOnbChallenges(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  function answerQuiz(yes) {
+    const id = CHALLENGES[onbQuizIndex].id;
+    setOnbChallenges(p => yes ? (p.includes(id) ? p : [...p, id]) : p.filter(x => x !== id));
+    // After the last question, land back on the (now pre-filled) list to review — never auto-finalize.
+    if (onbQuizIndex === CHALLENGES.length - 1) setOnbChallengeStage('list');
+    else setOnbQuizIndex(i => i + 1);
+  }
+  function quizBack() {
+    if (onbQuizIndex > 0) setOnbQuizIndex(i => i - 1);
+    else setOnbChallengeStage('list');
+  }
   function resetOnboardingForm() {
     setOnbStep(1);
     setOnbBehaviors([]); setOnbCustomBehavior('');
+    setOnbChallengeStage('list'); setOnbQuizIndex(0); setOnbChallenges([]);
+    setOnbDiagnosisNote(''); setShowOnbDiagnosis(false);
   }
   async function skipOnboarding() {
     if (!user) return;
@@ -523,11 +552,15 @@ export default function App() {
         }));
       }
       await Promise.all(writes);
-      // Default tags & favoriteReplacements are left for the user to discover in context
-      // (tag seeding happens via the "skip onboarding" fallback effect once onboarded=true;
-      // favoriteReplacements starts empty and fills in from the Coping Toolkit / quick check).
-      await setDoc(doc(db, 'users', user.uid), { onboarded: true }, { merge: true });
+      // Default tags are seeded by the fallback effect once onboarded=true, narrowed to these
+      // challenges' emotion tags; favoriteReplacements fills in later from the Coping Toolkit.
+      const note = onbDiagnosisNote.trim();
+      await setDoc(doc(db, 'users', user.uid), {
+        onboarded: true, challenges: onbChallenges, ...(note ? { diagnosisNote: note } : {}),
+      }, { merge: true });
+      const hadSelfHarm = onbChallenges.includes('selfHarmUrges');
       resetOnboardingForm();
+      if (hadSelfHarm) toast(t.onboarding.selfHarmNote, 'info');
     } catch (err) {
       console.error('Onboarding save failed:', err);
       toast(t.toastError, 'error');
@@ -709,7 +742,7 @@ export default function App() {
           await batch.commit();
         }
       }
-      await setDoc(doc(db, 'users', user.uid), { onboarded: false, favoriteReplacements: [], tagsSeeded: false }, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), { onboarded: false, favoriteReplacements: [], tagsSeeded: false, challenges: [], diagnosisNote: '' }, { merge: true });
       setConfirmAction(null);
       setView('today');
       toast(t.appReset, 'success');
@@ -844,6 +877,29 @@ export default function App() {
       await setDoc(doc(db, 'users', user.uid), { streakEnabled: !userProfile?.streakEnabled }, { merge: true });
     } catch (err) {
       console.error('Streak toggle failed:', err);
+      toast(t.toastError, 'error');
+    }
+  }
+  // Editing challenges later only re-orders the Coping Toolkit — tags are user-owned once
+  // seeded, so this never adds or removes any.
+  async function toggleProfileChallenge(id) {
+    if (!user) return;
+    const current = userProfile?.challenges || [];
+    const next = current.includes(id) ? current.filter(c => c !== id) : [...current, id];
+    try {
+      await setDoc(doc(db, 'users', user.uid), { challenges: next }, { merge: true });
+    } catch (err) {
+      console.error('Challenge toggle failed:', err);
+      toast(t.toastError, 'error');
+    }
+  }
+  async function saveDiagnosisNote() {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'users', user.uid), { diagnosisNote: diagnosisDraft.trim() }, { merge: true });
+      toast(t.saved, 'success');
+    } catch (err) {
+      console.error('Diagnosis note save failed:', err);
       toast(t.toastError, 'error');
     }
   }
@@ -1194,6 +1250,31 @@ export default function App() {
         </div>
         <button className="btn btn-ghost btn-sm btn-full" onClick={openNewTag}><PlusIcon/> {t.addTag}</button>
       </div>
+      <div className="card">
+        <div className="card-title">{t.manageChallengesTitle}</div>
+        <p className="onb-body" style={{ marginBottom: 12 }}>{t.manageChallengesHint}</p>
+        <div className="tags challenge-chips" style={{ marginBottom: 12 }}>
+          {CHALLENGES.map(c => (
+            <button key={c.id} className={`chip ${userProfile?.challenges?.includes(c.id) ? 'on' : ''}`} onClick={() => toggleProfileChallenge(c.id)}>
+              {t.challenges[c.id].label}
+            </button>
+          ))}
+        </div>
+        {!showSettingsDiagnosis ? (
+          <button className="btn btn-ghost btn-sm btn-full" onClick={() => { setDiagnosisDraft(userProfile?.diagnosisNote || ''); setShowSettingsDiagnosis(true); }}>
+            {userProfile?.diagnosisNote ? <><PencilIcon/> {userProfile.diagnosisNote}</> : `+ ${t.diagnosisToggle}`}
+          </button>
+        ) : (
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label>{t.diagnosisLabel}</label>
+            <input type="text" placeholder={t.diagnosisPh} value={diagnosisDraft} onChange={e => setDiagnosisDraft(e.target.value)}/>
+            <div className="modal-actions" style={{ marginTop: 10 }}>
+              <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => setShowSettingsDiagnosis(false)}>{t.cancel}</button>
+              <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={async () => { await saveDiagnosisNote(); setShowSettingsDiagnosis(false); }}>{t.diagnosisSave}</button>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="settings-section-title">{t.preferencesSection}</div>
       <div className="card">
@@ -1425,14 +1506,14 @@ export default function App() {
           </div>
         )}
 
-        {/* First-login onboarding: suggest behaviors & replacement tags */}
+        {/* First-login onboarding: welcome → challenges (direct pick or quiz) → behaviors */}
         {showOnboarding && (
-          <div ref={onboardingModalRef} className="onb-screen" role="dialog" aria-modal="true" aria-label={t.onboarding.step1Title}
-            style={{ background: onbStep === 1 ? 'var(--bg)' : 'var(--warm-flat-bg)' }}>
+          <div ref={onboardingModalRef} className="onb-screen" role="dialog" aria-modal="true" aria-label={t.onboarding[`step${onbStep}Title`]}
+            style={{ background: ['var(--bg)', 'var(--gold-flat-bg)', 'var(--warm-flat-bg)'][onbStep - 1] }}>
             <div className="onb-dots">
-              {[1, 2].map(n => <div key={n} className={`onb-dot ${onbStep === n ? 'on' : ''}`}/>)}
+              {[1, 2, 3].map(n => <div key={n} className={`onb-dot ${onbStep === n ? 'on' : ''}`}/>)}
             </div>
-            <div className="onb-screen-body">
+            <div className="onb-screen-body" key={`${onbStep}-${onbChallengeStage}-${onbQuizIndex}`}>
               {onbStep === 1 && (
                 <>
                   <div className="onb-emoji">🌱</div>
@@ -1444,10 +1525,49 @@ export default function App() {
                   </div>
                 </>
               )}
-              {onbStep === 2 && (
+              {onbStep === 2 && onbChallengeStage === 'list' && (
                 <>
                   <div className="modal-title">{t.onboarding.step2Title}</div>
                   <p className="onb-body">{t.onboarding.step2Body}</p>
+                  <div className="tags challenge-chips" style={{ marginBottom: 14 }}>
+                    {CHALLENGES.map(c => (
+                      <button key={c.id} className={`chip ${onbChallenges.includes(c.id) ? 'on' : ''}`} onClick={() => toggleOnbChallenge(c.id)}>
+                        {t.challenges[c.id].label}
+                      </button>
+                    ))}
+                  </div>
+                  <button className="onb-link" onClick={() => { setOnbQuizIndex(0); setOnbChallengeStage('quiz'); }}>{t.onboarding.helpMeButton}</button>
+                  {showOnbDiagnosis ? (
+                    <div className="field" style={{ marginTop: 14 }}>
+                      <label>{t.diagnosisLabel}</label>
+                      <input type="text" placeholder={t.diagnosisPh} value={onbDiagnosisNote} onChange={e => setOnbDiagnosisNote(e.target.value)}/>
+                    </div>
+                  ) : (
+                    <button className="onb-link onb-link-muted" onClick={() => setShowOnbDiagnosis(true)}>+ {t.diagnosisToggle}</button>
+                  )}
+                  <div className="modal-actions">
+                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setOnbStep(1)}>{t.onboarding.back}</button>
+                    <button className="btn btn-primary" style={{ flex: 2 }} onClick={() => setOnbStep(3)}>{t.onboarding.next}</button>
+                  </div>
+                </>
+              )}
+              {onbStep === 2 && onbChallengeStage === 'quiz' && (
+                <>
+                  <div className="onb-quiz-progress">
+                    {t.onboarding.quizProgress.replace('{n}', onbQuizIndex + 1).replace('{total}', CHALLENGES.length)}
+                  </div>
+                  <div className="modal-title onb-quiz-question">{t.challenges[CHALLENGES[onbQuizIndex].id].quizQuestion}</div>
+                  <div className="onb-quiz-answers">
+                    <button className="btn btn-primary btn-full" onClick={() => answerQuiz(true)}>{t.onboarding.quizYes}</button>
+                    <button className="btn btn-ghost btn-full" onClick={() => answerQuiz(false)}>{t.onboarding.quizNo}</button>
+                  </div>
+                  <button className="onb-link onb-link-muted" onClick={quizBack}>← {t.onboarding.back}</button>
+                </>
+              )}
+              {onbStep === 3 && (
+                <>
+                  <div className="modal-title">{t.onboarding.step3Title}</div>
+                  <p className="onb-body">{t.onboarding.step3Body}</p>
                   <div className="tags" style={{ marginBottom: 14 }}>
                     {onbSuggestedBehaviors.length === 0 && <p className="onb-body" style={{ margin: 0 }}>{t.onboarding.allAdded}</p>}
                     {onbSuggestedBehaviors.map(s => (
@@ -1461,7 +1581,7 @@ export default function App() {
                     <input type="text" placeholder={t.onboarding.customBehaviorPh} value={onbCustomBehavior} onChange={e => setOnbCustomBehavior(e.target.value)}/>
                   </div>
                   <div className="modal-actions">
-                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setOnbStep(1)}>{t.onboarding.back}</button>
+                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setOnbStep(2)}>{t.onboarding.back}</button>
                     <button className="btn btn-primary" style={{ flex: 2 }} onClick={finishOnboarding} disabled={onbSaving}>{onbSaving ? '…' : t.onboarding.finish}</button>
                   </div>
                 </>
@@ -1519,7 +1639,7 @@ export default function App() {
           )}
         </ConfirmSheet>
         <LegalSheet open={!!showLegal} title={showLegal === 'terms' ? t.terms : t.privacy} sections={showLegal === 'terms' ? TERMS[uiLang] : PRIVACY[uiLang]} closeLabel={t.close} onCancel={() => setShowLegal(null)}/>
-        <CopingToolkitModal open={showCopingToolkit} t={t} favorites={userProfile?.favoriteReplacements} onToggleFavorite={toggleFavoriteReplacement} onCancel={() => setShowCopingToolkit(false)}/>
+        <CopingToolkitModal open={showCopingToolkit} t={t} favorites={userProfile?.favoriteReplacements} onToggleFavorite={toggleFavoriteReplacement} onCancel={() => setShowCopingToolkit(false)} priorityTagIds={relevantTagIds(userProfile?.challenges)}/>
       </div>
     </>
   );

@@ -194,12 +194,21 @@ export const CSS = `
   .modal-title { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; color: var(--text); margin-bottom: 18px; letter-spacing: -0.2px; }
   .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
   .onb-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 18px; }
-  .onb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); transition: background 0.2s, transform 0.2s; }
+  .onb-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(14,35,34,0.18); transition: background 0.2s, transform 0.2s; }
+  .app.dark .onb-dot { background: rgba(255,255,255,0.22); }
   .onb-dot.on { background: var(--accent); transform: scale(1.3); }
   .onb-emoji { font-size: 3rem; text-align: center; margin-bottom: 14px; }
   .onb-body { font-size: 0.88rem; color: var(--text-muted); font-weight: 500; line-height: 1.6; margin-bottom: 18px; }
   .onb-screen { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; padding: calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom)); overflow-y: auto; -webkit-overflow-scrolling: touch; transition: background-color 0.3s; }
   .onb-screen-body { flex: 1; display: flex; flex-direction: column; justify-content: center; width: 100%; max-width: 440px; margin: 0 auto; animation: fadeUp 0.35s cubic-bezier(.2,.8,.2,1) both; }
+  .challenge-chips .chip { white-space: normal; text-align: left; line-height: 1.3; }
+  .onb-link { align-self: flex-start; background: none; border: none; padding: 8px 0; font: 800 0.86rem 'Manrope', sans-serif; color: var(--accent-deep); cursor: pointer; }
+  .app.dark .onb-link { color: var(--accent); }
+  .onb-link-muted { color: var(--text-muted); font-weight: 700; }
+  .app.dark .onb-link-muted { color: var(--text-muted); }
+  .onb-quiz-progress { font-size: 0.72rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 10px; }
+  .onb-quiz-question { font-size: 1.6rem; line-height: 1.25; margin-bottom: 28px; }
+  .onb-quiz-answers { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
 
   /* Form */
   .field { margin-bottom: 14px; }

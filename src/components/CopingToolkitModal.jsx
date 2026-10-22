@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useModalA11y } from '../hooks/useModalA11y';
 import { COPING_CATEGORIES, COPING_TECHNIQUES } from '../copingToolkit';
+import { prioritizeTechniques } from '../challenges';
 
-export default function CopingToolkitModal({ open, t, favorites, onToggleFavorite, onCancel }) {
+export default function CopingToolkitModal({ open, t, favorites, onToggleFavorite, onCancel, priorityTagIds }) {
   const modalRef = useModalA11y(open, onCancel);
   const [expandedId, setExpandedId] = useState(null);
   if (!open) return null;
@@ -15,7 +16,7 @@ export default function CopingToolkitModal({ open, t, favorites, onToggleFavorit
         {COPING_CATEGORIES.map(cat => (
           <section key={cat} className="legal-section">
             <h3>{t.copingCategories[cat]}</h3>
-            {COPING_TECHNIQUES.filter(tc => tc.category === cat).map(tc => {
+            {prioritizeTechniques(COPING_TECHNIQUES.filter(tc => tc.category === cat), priorityTagIds).map(tc => {
               const tech = t.copingTechniques[tc.id];
               const isFav = favorites?.includes(tech.title);
               const isOpen = expandedId === tc.id;

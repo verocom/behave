@@ -7,6 +7,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        importScripts: ['push-sw.js'],
+        // Serverless functions must always hit the network, never the app shell.
+        navigateFallbackDenylist: [/^\/api\//],
+      },
       manifest: {
         name: 'Limitless',
         short_name: 'Limitless',

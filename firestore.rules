@@ -12,6 +12,12 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if false;
     }
+    // Daily reminder settings (hour, time zone, push subscription). Same idea: shown to its
+    // owner, written only by /api/reminders, which checks the push address is a real one.
+    match /reminders/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
     // accessCodes/{code} (clinic codes and their redemptions) has no rule on purpose:
     // the default deny keeps codes unguessable from the app; only /api/redeem-code reads them.
   }

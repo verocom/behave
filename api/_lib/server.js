@@ -3,10 +3,14 @@
 //   FIREBASE_SERVICE_ACCOUNT  JSON of a Firebase service account key (Admin SDK)
 //   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_MONTHLY, STRIPE_PRICE_YEARLY
 //   APP_URL (optional) e.g. https://behave-oxeon.vercel.app — where Stripe sends people back
+//   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (optional mailto:) — daily reminder pushes
+//   CRON_SECRET — the scheduler's bearer token for /api/send-reminders
 // Each feature switches on only once everything it needs is present; until then endpoints
 // answer 503 and the app keeps showing "available soon".
 
 import Stripe from 'stripe';
+import webpush from 'web-push';
+import { timingSafeEqual } from 'node:crypto';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -21,6 +25,27 @@ export function billingConfig() {
     checkout: admin && stripe && !!env('STRIPE_PRICE_MONTHLY') && !!env('STRIPE_PRICE_YEARLY'),
     webhook: admin && stripe && !!env('STRIPE_WEBHOOK_SECRET'),
   };
+}
+
+export function remindersConfigured() {
+  return !!env('FIREBASE_SERVICE_ACCOUNT') && !!env('VAPID_PUBLIC_KEY') && !!env('VAPID_PRIVATE_KEY');
+}
+
+let vapidSet = false;
+export function getWebPush() {
+  if (!vapidSet) {
+    webpush.setVapidDetails(env('VAPID_SUBJECT') || 'mailto:support@limitless.app', env('VAPID_PUBLIC_KEY'), env('VAPID_PRIVATE_KEY'));
+    vapidSet = true;
+  }
+  return webpush;
+}
+
+/** True when the request carries "Authorization: Bearer <CRON_SECRET>" (Vercel Cron sends exactly this). */
+export function isCronRequest(req) {
+  const secret = env('CRON_SECRET');
+  const given = Buffer.from(req.headers.authorization || '');
+  const expected = Buffer.from(`Bearer ${secret}`);
+  return !!secret && given.length === expected.length && timingSafeEqual(given, expected);
 }
 
 let stripeClient;

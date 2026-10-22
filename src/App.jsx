@@ -26,6 +26,7 @@ import { CHALLENGES, relevantTagIds, sortBehaviorsByChallenges } from './challen
 import { buildInsights, triggerCounts } from './insights';
 import { PROGRAMS, dayStates, programSummary } from './programs';
 import { PROGRAM_CONTENT } from './programContent';
+import { reminderSupport, currentTimeZone, subscribeToPush, unsubscribeFromPush, formatHour } from './pushReminder';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 // Seeded into a new user's own `tags` collection on first load, using these exact
@@ -92,11 +93,11 @@ function formatMoney(n, locale, currency = 'CAD') {
 function formatLongDate(ts, locale) {
   return new Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(new Date(ts));
 }
-// Calls a Limitless+ serverless function as the signed-in user (see /api).
-async function apiPost(path, body = {}) {
+// Calls one of the serverless functions in /api as the signed-in user.
+async function apiRequest(path, body = {}, method = 'POST') {
   const token = await auth.currentUser.getIdToken();
   const res = await fetch(path, {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   });
@@ -478,6 +479,10 @@ export default function App() {
   const [billingBusy,   setBillingBusy]   = useState(null);
   const [accessCode,    setAccessCode]    = useState('');
   const [codeError,     setCodeError]     = useState('');
+  const [reminder,       setReminder]       = useState(null);
+  const [reminderStatus, setReminderStatus] = useState(null);
+  const [reminderBusy,   setReminderBusy]   = useState(false);
+  const [reminderIssue,  setReminderIssue]  = useState(null);
   const [openDay,       setOpenDay]       = useState(null);
   const [dayReflection, setDayReflection] = useState('');
   const [savingDay,     setSavingDay]     = useState(false);
@@ -530,7 +535,9 @@ export default function App() {
     // Written only by trusted server code (see firestore.rules); a missing doc or a
     // permission error just means "not premium", never an error to surface.
     const unsubP = onSnapshot(doc(db, 'entitlements', user.uid), snap => setEntitlement(snap.exists() ? snap.data() : null), () => setEntitlement(null));
-    return () => { unsubB(); unsubE(); unsubT(); unsubU(); unsubM(); unsubP(); };
+    // Same for the daily reminder: written only by /api/reminders.
+    const unsubR = onSnapshot(doc(db, 'reminders', user.uid), snap => setReminder(snap.exists() ? snap.data() : null), () => setReminder(null));
+    return () => { unsubB(); unsubE(); unsubT(); unsubU(); unsubM(); unsubP(); unsubR(); };
   }, [toast, uiLang, user?.uid]);
 
   // ── Seed default tags once, for accounts that skip onboarding without picking any ──
@@ -615,7 +622,7 @@ export default function App() {
   const startCheckout = async () => {
     setBillingBusy('checkout');
     try {
-      const { ok, data } = await apiPost('/api/create-checkout-session', { plan });
+      const { ok, data } = await apiRequest('/api/create-checkout-session', { plan });
       if (ok && data.url) { window.location.assign(data.url); return; }
       toast(data.error === 'alreadyPremium' ? t.codeErrors.alreadyPremium : t.toastError, 'error');
     } catch (err) {
@@ -628,7 +635,7 @@ export default function App() {
   const openBillingPortal = async () => {
     setBillingBusy('portal');
     try {
-      const { ok, data } = await apiPost('/api/create-portal-session');
+      const { ok, data } = await apiRequest('/api/create-portal-session');
       if (ok && data.url) { window.location.assign(data.url); return; }
       toast(t.toastError, 'error');
     } catch (err) {
@@ -644,7 +651,7 @@ export default function App() {
     setBillingBusy('code');
     setCodeError('');
     try {
-      const { ok, data } = await apiPost('/api/redeem-code', { code: accessCode });
+      const { ok, data } = await apiRequest('/api/redeem-code', { code: accessCode });
       if (ok) { setAccessCode(''); toast(t.codeRedeemed, 'success'); }
       else if (t.codeErrors[data.reason]) setCodeError(t.codeErrors[data.reason]);
       else toast(t.toastError, 'error');
@@ -654,6 +661,74 @@ export default function App() {
     }
     setBillingBusy(null);
   };
+
+  // ── Daily gentle reminder ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!user) { setReminderStatus(null); return; }
+    fetch('/api/reminders')
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => setReminderStatus(data && typeof data === 'object' ? data : { enabled: false }))
+      .catch(() => setReminderStatus({ enabled: false }));
+  }, [user?.uid]);
+
+  const saveReminder = async (hour, subscription) => {
+    const { ok } = await apiRequest('/api/reminders', { subscription, hour, timeZone: currentTimeZone(), lang: uiLang });
+    if (!ok) throw new Error('Reminder save failed');
+  };
+
+  const enableReminder = async hour => {
+    setReminderBusy(true);
+    setReminderIssue(null);
+    try {
+      const support = reminderSupport();
+      if (support !== 'ok') { setReminderIssue(support); return; }
+      const { subscription, error } = await subscribeToPush(reminderStatus.publicKey);
+      if (error) { setReminderIssue(error); return; }
+      await saveReminder(hour, subscription);
+      toast(t.reminderSaved(formatHour(hour, locale)), 'success');
+    } catch (err) {
+      console.error('Reminder setup failed:', err);
+      toast(t.toastError, 'error');
+    } finally {
+      setReminderBusy(false);
+    }
+  };
+
+  const changeReminderHour = async hour => {
+    if (!reminder || hour === reminder.hour) return;
+    setReminderBusy(true);
+    try { await saveReminder(hour, reminder.subscription); toast(t.reminderSaved(formatHour(hour, locale)), 'success'); }
+    catch (err) { console.error('Reminder update failed:', err); toast(t.toastError, 'error'); }
+    finally { setReminderBusy(false); }
+  };
+
+  const disableReminder = async () => {
+    setReminderBusy(true);
+    try {
+      const { ok } = await apiRequest('/api/reminders', {}, 'DELETE');
+      if (!ok) throw new Error('Reminder delete failed');
+      await unsubscribeFromPush();
+      toast(t.reminderStopped, 'success');
+    } catch (err) {
+      console.error('Reminder delete failed:', err);
+      toast(t.toastError, 'error');
+    } finally {
+      setReminderBusy(false);
+    }
+  };
+
+  const dismissReminderPrompt = async () => {
+    try { await setDoc(doc(db, 'users', user.uid), { reminderPromptDismissed: true }, { merge: true }); toast(t.reminderPromptLater, 'info'); }
+    catch (err) { console.error('Reminder prompt dismiss failed:', err); }
+  };
+
+  // Keep the reminder in the app's language and the person's current time zone (travel, moves).
+  useEffect(() => {
+    if (!reminder?.subscription || !reminderStatus?.enabled) return;
+    if (reminder.lang === uiLang && reminder.timeZone === currentTimeZone()) return;
+    saveReminder(reminder.hour, reminder.subscription).catch(err => console.error('Reminder sync failed:', err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reminder?.lang, reminder?.timeZone, uiLang, reminderStatus?.enabled]);
   const programCopy = PROGRAM_CONTENT[uiLang];
 
   // ── Onboarding (first login: suggest behaviors & replacement tags) ─────────
@@ -919,6 +994,8 @@ export default function App() {
         }
       }
       await deleteDoc(doc(db, 'users', user.uid));
+      // Best effort: the server also drops reminders of deleted accounts on its next run.
+      if (reminder) await apiRequest('/api/reminders', {}, 'DELETE').catch(() => {});
       await deleteUser(auth.currentUser);
       resetDeleteAccount();
       toast(t.accountDeleted, 'success');
@@ -1275,6 +1352,17 @@ export default function App() {
           </div>
         )}
 
+        {reminderStatus?.enabled && !reminder && !userProfile?.reminderPromptDismissed && todayChecks.length > 0 && reminderSupport() === 'ok' && (
+          <div className="card reminder-prompt">
+            <div className="reminder-prompt-title">🔔 {t.reminderPromptTitle}</div>
+            <p className="onb-body" style={{ margin: '4px 0 14px' }}>{t.reminderBody}</p>
+            <div className="modal-actions" style={{ marginTop: 0 }}>
+              <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={dismissReminderPrompt}>{t.reminderPromptNo}</button>
+              <button className="btn btn-primary btn-sm" style={{ flex: 2 }} onClick={() => enableReminder(20)} disabled={reminderBusy}>{t.reminderPromptYes(formatHour(20, locale))}</button>
+            </div>
+          </div>
+        )}
+
         <button className="card today-program" onClick={() => (prog.nextState === 'current' ? openProgramDay('basics', prog.nextIndex) : setView('programs'))}>
           <span className="program-emoji-sm">{basics.emoji}</span>
           <span className="program-locked-text">
@@ -1584,6 +1672,44 @@ export default function App() {
     );
   };
 
+  const REMINDER_HOURS = [8, 12, 18, 20, 22];
+  const renderReminderCard = () => {
+    const support = reminderSupport();
+    const issue = reminderIssue || (support !== 'ok' && !reminder ? support : null);
+    const hour = reminder?.hour;
+    return (
+      <div className="card reminder-card">
+        <div className="card-title">🔔 {t.reminderTitle}</div>
+        <p className="onb-body" style={{ marginBottom: 12 }}>{t.reminderBody}</p>
+        {!reminderStatus?.enabled ? (
+          <div className="btn btn-full btn-soon" aria-disabled="true">{t.premiumCta}</div>
+        ) : (
+          <>
+            {reminder && <p className="reminder-status">✓ {t.reminderEveryDay(formatHour(hour, locale))}</p>}
+            {issue && <p className="reminder-issue" role="status">{t.reminderIssues[issue]}</p>}
+            {(reminder || !issue || issue === 'blocked') && (
+              <>
+                <div className="reminder-hours" role="group" aria-label={t.reminderTitle}>
+                  {REMINDER_HOURS.map(h => (
+                    <button key={h} className={`lang-chip ${hour === h ? 'on' : ''}`} disabled={reminderBusy}
+                      onClick={() => (reminder ? changeReminderHour(h) : enableReminder(h))}>{formatHour(h, locale)}</button>
+                  ))}
+                  <select className="reminder-other" value={hour != null && !REMINDER_HOURS.includes(hour) ? hour : ''} disabled={reminderBusy} aria-label={t.reminderOtherHour}
+                    onChange={e => { const h = Number(e.target.value); if (e.target.value !== '') (reminder ? changeReminderHour(h) : enableReminder(h)); }}>
+                    <option value="">{t.reminderOtherHour}</option>
+                    {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{formatHour(h, locale)}</option>)}
+                  </select>
+                </div>
+                {!reminder && <p className="reminder-hint">{t.reminderPickHour}</p>}
+              </>
+            )}
+            {reminder && <button className="btn btn-ghost btn-sm btn-full" style={{ marginTop: 12 }} onClick={disableReminder} disabled={reminderBusy}>{t.reminderStop}</button>}
+          </>
+        )}
+      </div>
+    );
+  };
+
   const renderSettings = () => (
     <>
       <div className="settings-section-title">{t.dataSection}</div>
@@ -1642,6 +1768,7 @@ export default function App() {
       </div>
 
       <div className="settings-section-title">{t.preferencesSection}</div>
+      {renderReminderCard()}
       <div className="card">
         <div className="card-title">{t.theme}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>

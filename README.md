@@ -63,3 +63,25 @@ code can still be activated, `--dry-run` to preview. It prints a CSV of codes
 
 ### Checks
 `npm run verify:billing` covers the entitlement rules, code redemption and webhook signatures.
+
+## Daily gentle reminder (push notifications)
+One notification a day at the hour each person picks (Settings → Gentle reminder, or the
+invitation shown on Today after a check-in), in their own time zone, and none on a day they
+already logged something. Until the variables below are set, the option shows "Available soon".
+
+1. **Keys** — run `npx web-push generate-vapid-keys` once and add on Vercel:
+   `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, optionally `VAPID_SUBJECT` (`mailto:you@example.com`).
+   `FIREBASE_SERVICE_ACCOUNT` (see above) is also required.
+2. **Scheduler secret** — pick a long random string (`openssl rand -hex 32`) and set it as
+   `CRON_SECRET` on Vercel. Redeploy.
+3. **Hourly run** — `/api/send-reminders` must be called every hour with
+   `Authorization: Bearer <CRON_SECRET>`. The included GitHub Action
+   (`.github/workflows/daily-reminders.yml`) does it: add the repository secrets `APP_URL`
+   (e.g. `https://behave-oxeon.vercel.app`) and `CRON_SECRET` (same value as on Vercel).
+   On a Vercel Pro plan you can use Vercel Cron instead (`"crons": [{ "path": "/api/send-reminders", "schedule": "7 * * * *" }]` in `vercel.json`);
+   Hobby plans only allow daily crons, which is not enough.
+4. **Firestore rules** — deploy `firestore.rules` again (adds the read-only `reminders` rule).
+
+On iPhone/iPad, notifications only work once Limitless is added to the home screen
+(iOS 16.4+); the app explains this. `npm run verify:reminders` covers time zones,
+daylight saving, the skip-if-already-logged rule and cleanup.

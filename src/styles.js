@@ -226,6 +226,14 @@ export const CSS = `
   .code-error { margin: 8px 0 0; font-size: 0.85rem; font-weight: 700; color: var(--danger); }
   .sub-warning { margin-bottom: 14px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--gold-light); border: 1.5px solid var(--gold); }
   .sub-warning p { margin: 0 0 10px; font-size: 0.88rem; font-weight: 700; color: var(--text); }
+  .reminder-hours { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .reminder-hours .lang-chip:disabled { opacity: 0.6; }
+  .reminder-other { background: var(--surface2); border: 1.5px solid var(--border); border-radius: 100px; padding: 6px 12px; min-height: 34px; color: var(--text-muted); font-family: inherit; font-size: 0.78rem; font-weight: 700; }
+  .reminder-status { margin: 0 0 10px; font-weight: 800; color: var(--success); font-size: 0.9rem; }
+  .reminder-issue { margin: 0 0 12px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--gold-light); font-size: 0.84rem; font-weight: 700; line-height: 1.45; color: var(--text); }
+  .reminder-hint { margin: 8px 0 0; font-size: 0.76rem; font-weight: 600; color: var(--text-dim); }
+  .reminder-prompt { background: linear-gradient(135deg, var(--surface) 50%, var(--accent-light)); }
+  .reminder-prompt-title { font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; line-height: 1.25; }
   .btn-soon { background: var(--surface2); color: var(--text-muted); border: 1.5px dashed var(--border); cursor: default; }
   .mission-card { background: var(--warm-flat-bg); }
   .premium-teaser { font-family: var(--font-display); font-size: 1rem; font-weight: 700; line-height: 1.35; background: var(--gold-flat-bg); }

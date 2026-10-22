@@ -212,9 +212,11 @@ export const CSS = `
   /* Buttons */
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 22px; min-height: 48px; border-radius: 100px; border: none; cursor: pointer; font-family: 'Manrope', sans-serif; font-size: 0.92rem; font-weight: 800; transition: all 0.15s; -webkit-tap-highlight-color: transparent; }
   .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; pointer-events: none; animation: btn-busy 1.1s ease-in-out infinite; }
+  @keyframes btn-busy { 0%,100% { opacity: 0.55; } 50% { opacity: 0.85; } }
   .btn-primary { background: var(--accent); color: white; box-shadow: var(--shadow-sm); }
   .btn-primary:hover { background: var(--accent-deep); transform: translateY(-1px); }
-  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; transform: none; }
+  .btn-primary:disabled { box-shadow: none; transform: none; }
   .btn-ghost { background: var(--surface2); color: var(--text-muted); border: 1.5px solid var(--border); }
   .btn-ghost:hover { border-color: var(--text-muted); color: var(--text); }
   .btn-google { background: white; color: #444; border: 1.5px solid #DDD; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }

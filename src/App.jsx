@@ -387,6 +387,8 @@ export default function App() {
   const [thermoLevel, setThermoLevel] = useState(null);
   const [showContext, setShowContext] = useState(false);
   const [showDayparts, setShowDayparts] = useState(false);
+  const [showVoiceLangs, setShowVoiceLangs] = useState(false);
+  const [showEntryContext, setShowEntryContext] = useState(false);
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
   const [confirmAction, setConfirmAction] = useState(null);
@@ -464,7 +466,7 @@ export default function App() {
     media.addEventListener?.('change', apply);
     return () => media.removeEventListener?.('change', apply);
   }, [themeMode]);
-  useEffect(() => { document.body.style.background = dark ? '#0A1615' : '#F6FBFA'; }, [dark]);
+  useEffect(() => { document.body.style.background = dark ? '#071C2E' : '#D6EEF7'; }, [dark]);
 
   // ── i18n ──────────────────────────────────────────────────────────────────
   const t = STRINGS[uiLang];
@@ -939,6 +941,7 @@ export default function App() {
   const closeEntry = () => {
     setShowEntry(false); stopRec(); setTranscript(''); setEntryForm({ behaviorId: '', tags: [], replacement: '', note: '' }); setEditingEntryId(null);
     setAutoTagIds([]); setDismissedAutoTags([]); setBehaviorAutoFilled(false); setExpandedTechnique(null);
+    setShowVoiceLangs(false); setShowEntryContext(false);
   };
   const entryModalRef = useModalA11y(showEntry, closeEntry);
 
@@ -1447,7 +1450,7 @@ export default function App() {
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (!authReady) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: dark ? '#0A1615' : '#F6FBFA', fontFamily: 'Manrope,sans-serif', color: dark ? '#8CA9A5' : '#5C7572', fontSize: '0.9rem', fontWeight: 600 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: dark ? '#071C2E' : '#D6EEF7', fontFamily: 'Manrope,sans-serif', color: dark ? '#8DA7BC' : '#587083', fontSize: '0.9rem', fontWeight: 600 }}>
       {STRINGS[uiLang].loading}
     </div>
   );
@@ -1552,17 +1555,23 @@ export default function App() {
             <div ref={entryModalRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="entry-modal-title">
               <div className="modal-handle"/>
               <div id="entry-modal-title" className="modal-title">{editingEntryId ? t.editEntryTitle : t.newEntry}</div>
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 7 }}>{t.voiceLangLabel}</div>
-                <div className="lang-bar">{LANGS.map(l => <div key={l.code} className={`lang-chip ${recLang === l.code ? 'on' : ''}`} onClick={() => { setRecLang(l.code); if (recording) stopRec(); }}>{l.flag} {l.code.split('-')[0].toUpperCase()}</div>)}</div>
-              </div>
               {recErr && <div className="error-msg">{recErr}</div>}
               {recording && <div className="rec-indicator"><div className="rec-dot"/> {t.listening}</div>}
               <textarea className="transcript-box" placeholder={recording ? t.transcribing : t.typePh} value={transcript} onChange={e => setTranscript(e.target.value)}/>
-              {recording ? (
-                <button className="btn btn-ghost btn-full" style={{ marginBottom: 14, borderColor: '#D07060', color: '#D07060' }} onClick={stopRec}><StopIcon/> {t.stopRecording}</button>
-              ) : (
-                <button className="btn btn-ghost btn-full" style={{ marginBottom: 14 }} onClick={startRec}><MicIcon/> {recErr ? t.tryAgain : t.recordBtn}</button>
+              <div className="rec-row">
+                {recording ? (
+                  <button className="btn btn-ghost rec-stop" style={{ flex: 1 }} onClick={stopRec}><StopIcon/> {t.stopRecording}</button>
+                ) : (
+                  <button className="btn btn-ghost" style={{ flex: 1 }} onClick={startRec}><MicIcon/> {recErr ? t.tryAgain : t.recordBtn}</button>
+                )}
+                <button className={`chip ${showVoiceLangs ? 'on' : ''}`} onClick={() => setShowVoiceLangs(p => !p)} aria-label={t.voiceLangLabel} title={t.voiceLangLabel}>
+                  🌐 {recLang.split('-')[0].toUpperCase()}
+                </button>
+              </div>
+              {showVoiceLangs && (
+                <div className="lang-bar">
+                  {LANGS.map(l => <button key={l.code} className={`lang-chip ${recLang === l.code ? 'on' : ''}`} onClick={() => { setRecLang(l.code); if (recording) stopRec(); setShowVoiceLangs(false); }}>{l.flag} {l.code.split('-')[0].toUpperCase()}</button>)}
+                </div>
               )}
               <div className="field">
                 <label>{t.behavior} * {behaviorAutoFilled && '✨'}</label>
@@ -1572,14 +1581,31 @@ export default function App() {
                 </select>
                 {behaviors.length === 0 && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 6, fontWeight: 600 }}>{t.addFirst}</div>}
               </div>
-              <div className="field">
-                <label>{t.contextTriggers}</label>
-                <div className="tags" style={{ marginTop: 4 }}>
-                  {tags.map(tg => <span key={tg.id} className={`tag ${entryForm.tags.includes(tg.id) ? '' : 'off'} ${autoTagIds.includes(tg.id) ? 'auto' : ''}`} style={{ background: tg.color + '22', borderColor: tg.color + (entryForm.tags.includes(tg.id) ? '99' : '44'), color: tg.color }} onClick={() => toggleTag(tg.id)}>{tg.emoji} {tg.label}</span>)}
-                  {tags.length === 0 && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 6, fontWeight: 600 }}>{t.addFirstTag}</div>}
-                </div>
-                {autoTagIds.length > 0 && <div className="auto-hint">{t.autoDetectedHint}</div>}
-              </div>
+              {(() => {
+                const chip = tg => {
+                  const on = entryForm.tags.includes(tg.id);
+                  return (
+                    <button key={tg.id} className={`chip ${on ? 'on' : ''}`} style={on ? { background: tg.color, borderColor: tg.color, color: 'white' } : undefined} onClick={() => toggleTag(tg.id)}>
+                      {on && autoTagIds.includes(tg.id) && '✨ '}{tg.emoji} {tg.label}
+                    </button>
+                  );
+                };
+                const emotionTags = tags.filter(tg => EMOTION_TAGS.includes(tg.id));
+                const contextTags = tags.filter(tg => !EMOTION_TAGS.includes(tg.id));
+                // Time-of-day is always auto-tagged, so only a place/people tag opens the context by itself.
+                const contextOpen = showEntryContext || contextTags.some(tg => !TIME_TAG_IDS.includes(tg.id) && entryForm.tags.includes(tg.id));
+                return (
+                  <div className="field">
+                    <label>{t.whatsHere}</label>
+                    {tags.length === 0 && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 6, fontWeight: 600 }}>{t.addFirstTag}</div>}
+                    <div className="tags">{emotionTags.map(chip)}</div>
+                    {contextTags.length > 0 && (contextOpen
+                      ? <div className="tags" style={{ marginTop: 10 }}>{contextTags.map(chip)}</div>
+                      : <button className="onb-link onb-link-muted" onClick={() => setShowEntryContext(true)}>{t.addContextShort}</button>)}
+                    {autoTagIds.length > 0 && <div className="auto-hint">{t.autoDetectedHint}</div>}
+                  </div>
+                );
+              })()}
               <div className="field">
                 <label>{t.replacementLabel}</label>
                 <input type="text" placeholder={t.replacementPh} value={entryForm.replacement} onChange={e => setEntryForm(p => ({ ...p, replacement: e.target.value }))}/>
@@ -1722,9 +1748,8 @@ export default function App() {
                   <div className="tags" style={{ marginBottom: 14 }}>
                     {onbSuggestedBehaviors.length === 0 && <p className="onb-body" style={{ margin: 0 }}>{t.onboarding.allAdded}</p>}
                     {onbSuggestedBehaviors.map(s => (
-                      <span key={s.id} className={`tag ${onbBehaviors.includes(s.id) ? '' : 'off'}`}
-                        style={{ background: 'var(--accent-light)', borderColor: 'var(--accent)', color: 'var(--accent-deep)' }}
-                        onClick={() => toggleOnbBehavior(s.id)}>{t.onboarding.behaviors[s.id]}</span>
+                      <button key={s.id} className={`chip ${onbBehaviors.includes(s.id) ? 'on' : ''}`}
+                        onClick={() => toggleOnbBehavior(s.id)}>{t.onboarding.behaviors[s.id]}</button>
                     ))}
                   </div>
                   <div className="field">

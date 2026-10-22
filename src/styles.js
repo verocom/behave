@@ -11,13 +11,13 @@ export const CSS = `
     --gold: #FFC24B; --gold-deep: #E0A020; --gold-light: rgba(255,194,75,0.18);
     --success: #14A974; --danger: #FF5A52;
     --water: #0E6FA8;
-    --bg: #D6EEF7; --surface: #FFFFFF; --surface2: #EEF6F5; --surface3: #E1EEEC;
+    --bg: #D6EEF7; --surface: #FFFFFF; --surface2: #EEF5FA; --surface3: #E1ECF4;
     --surface-glass: rgba(255,255,255,0.86);
     --warm-flat-bg: #FFDAD3; --gold-flat-bg: #FFECC2;
-    --border: #E0EDEB; --text: #0E2322; --text-muted: #5C7572; --text-dim: #9EB4B1;
-    --shadow-sm: 0 2px 12px rgba(14,35,34,0.06);
-    --shadow:    0 10px 30px rgba(14,35,34,0.10);
-    --shadow-lg: 0 20px 54px rgba(14,35,34,0.18);
+    --border: #DDE9F1; --text: #0E2233; --text-muted: #587083; --text-dim: #9AB0C1;
+    --shadow-sm: 0 2px 12px rgba(14,34,51,0.06);
+    --shadow:    0 10px 30px rgba(14,34,51,0.10);
+    --shadow-lg: 0 20px 54px rgba(14,34,51,0.18);
     --radius: 26px; --radius-sm: 16px;
     max-width: 480px; margin: 0 auto; min-height: 100vh;
     display: flex; flex-direction: column;
@@ -32,10 +32,10 @@ export const CSS = `
     --gold: #FFCB5C; --gold-deep: #FFDD8C; --gold-light: rgba(255,203,92,0.16);
     --success: #4FE2A8; --danger: #FF7A72;
     --water: #1E88C9;
-    --bg: #071C2E; --surface: #112220; --surface2: #172A28; --surface3: #1F3532;
-    --surface-glass: rgba(17,34,32,0.86);
+    --bg: #071C2E; --surface: #0F2537; --surface2: #15304A; --surface3: #1C3A56;
+    --surface-glass: rgba(15,37,55,0.88);
     --warm-flat-bg: #4A2622; --gold-flat-bg: #4A3514;
-    --border: #203531; --text: #EAF7F4; --text-muted: #8CA9A5; --text-dim: #4C615E;
+    --border: #21405B; --text: #EAF3FA; --text-muted: #8DA7BC; --text-dim: #50687D;
     --shadow-sm: 0 2px 12px rgba(0,0,0,0.3);
     --shadow:    0 10px 30px rgba(0,0,0,0.4);
     --shadow-lg: 0 20px 54px rgba(0,0,0,0.55);
@@ -74,7 +74,7 @@ export const CSS = `
     display: flex; align-items: stretch;
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
     z-index: 100;
-    box-shadow: 0 -4px 24px rgba(14,35,34,0.08);
+    box-shadow: 0 -4px 24px rgba(14,34,51,0.08);
   }
   .app.dark .tabbar { box-shadow: 0 -4px 24px rgba(0,0,0,0.35); }
   .tab {
@@ -204,8 +204,7 @@ export const CSS = `
   .tags { display: flex; flex-wrap: wrap; gap: 6px; }
   .tag { display: inline-flex; align-items: center; gap: 4px; padding: 8px 13px; min-height: 36px; border-radius: 100px; font-size: 0.76rem; font-weight: 700; border: 1.5px solid transparent; cursor: pointer; transition: all 0.15s; user-select: none; -webkit-tap-highlight-color: transparent; }
   .tag:active { transform: scale(0.94); }
-  .tag.off { opacity: 0.38; } .tag.readonly { cursor: default; opacity: 1; }
-  .tag.auto { border-style: dashed; }
+  .tag.readonly { cursor: default; }
   .technique-howto { font-size: 0.82rem; color: var(--text-muted); font-weight: 500; line-height: 1.55; margin-top: 10px; }
   .auto-hint { font-size: 0.74rem; color: var(--text-dim); font-weight: 600; margin-top: 6px; }
 
@@ -251,7 +250,7 @@ export const CSS = `
   .chip { white-space: nowrap; padding: 9px 16px; min-height: 38px; display: inline-flex; align-items: center; border-radius: 100px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-muted); font-family: 'Manrope', sans-serif; font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: all 0.15s; box-shadow: var(--shadow-sm); -webkit-tap-highlight-color: transparent; }
   .chip:active { transform: scale(0.95); }
   .chip.on { background: var(--accent); border-color: var(--accent); color: white; }
-  .app.dark .chip.on { color: #0A1615; }
+  .app.dark .chip.on { color: #071C2E; }
 
   /* Behaviors */
   .behavior-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--surface2); border-radius: var(--radius-sm); margin-bottom: 8px; }
@@ -259,14 +258,14 @@ export const CSS = `
   .behavior-cost { font-size: 0.75rem; font-weight: 600; color: var(--warm); margin-top: 2px; }
 
   /* Modals */
-  .overlay { position: fixed; inset: 0; background: rgba(8,22,21,0.5); display: flex; align-items: flex-end; z-index: 200; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .overlay { position: fixed; inset: 0; background: rgba(5,20,33,0.5); display: flex; align-items: flex-end; z-index: 200; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
   .modal { background: var(--surface); border-radius: 28px 28px 0 0; padding: 6px 18px calc(28px + env(safe-area-inset-bottom)); width: 100%; max-width: 480px; margin: 0 auto; max-height: 90dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; box-shadow: var(--shadow-lg); animation: sheet-up 0.28s cubic-bezier(.32,.72,.27,1); }
   @keyframes sheet-up { from { transform: translateY(40px); opacity: 0.6; } to { transform: translateY(0); opacity: 1; } }
   .modal-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 12px auto 20px; }
   .modal-title { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; color: var(--text); margin-bottom: 18px; letter-spacing: -0.2px; }
   .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
   .onb-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 18px; }
-  .onb-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(14,35,34,0.18); transition: background 0.2s, transform 0.2s; }
+  .onb-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(14,34,51,0.18); transition: background 0.2s, transform 0.2s; }
   .app.dark .onb-dot { background: rgba(255,255,255,0.22); }
   .onb-dot.on { background: var(--accent); transform: scale(1.3); }
   .onb-emoji { font-size: 3rem; text-align: center; margin-bottom: 14px; }
@@ -308,6 +307,8 @@ export const CSS = `
   /* Transcript */
   .transcript-box { display: block; width: 100%; background: var(--surface2); border: 1.5px solid var(--accent); border-radius: var(--radius-sm); padding: 14px; font-size: 16px; font-weight: 600; font-family: 'Manrope', sans-serif; line-height: 1.6; min-height: 88px; color: var(--text); margin-bottom: 14px; box-shadow: 0 0 0 3px var(--accent-light); resize: vertical; outline: none; }
   .transcript-box::placeholder { color: var(--text-dim); }
+  .rec-row { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .rec-stop { border-color: var(--warm); color: var(--warm-deep); }
   .rec-indicator { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 700; color: var(--warm-deep); margin-bottom: 12px; }
   .rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warm-deep); animation: blink 1s infinite; }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }

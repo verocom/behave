@@ -21,6 +21,23 @@ export const COPING_TECHNIQUES = [
   { id: 'nonjudgmental', category: 'mindfulness', tagIds: ['anger', 'sadness'] },
 ];
 
+/**
+ * One technique to offer right now. Very high intensity (8+) always gets TIPP — DBT's
+ * first move is calming the body, since problem-solving doesn't work while flooded.
+ * Otherwise the best match for the emotions picked, falling back to STOP once the water
+ * reaches the neck. Ties prefer techniques related to `priorityTagIds` (the user's challenges).
+ */
+export function techniqueForMoment(level, activeTagIds, priorityTagIds = []) {
+  if (level != null && level >= 8) return 'tipp';
+  const ranked = suggestTechniques(activeTagIds, COPING_TECHNIQUES.length);
+  if (ranked.length) {
+    const top = ranked.filter(tc => overlap(tc, activeTagIds) === overlap(ranked[0], activeTagIds));
+    return (top.find(tc => overlap(tc, priorityTagIds) > 0) || top[0]).id;
+  }
+  return level != null && level >= 5 ? 'stop' : null;
+}
+const overlap = (tc, ids) => tc.tagIds.filter(id => ids?.includes(id)).length;
+
 /** Returns up to `max` techniques most relevant to the given active tag ids, scored by overlap. */
 export function suggestTechniques(activeTagIds, max = 3) {
   if (!activeTagIds?.length) return [];

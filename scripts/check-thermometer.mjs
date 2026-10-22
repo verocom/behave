@@ -1,6 +1,6 @@
 // Standalone verification for src/thermometer.js — run with: node scripts/check-thermometer.mjs
 import assert from 'node:assert/strict';
-import { suggestDaypart, aggregateThermometer, waterLevelY, DAYPARTS } from '../src/thermometer.js';
+import { suggestDaypart, aggregateThermometer, waterLevelY, levelFromY, levelBand, DAYPARTS } from '../src/thermometer.js';
 
 let passed = 0;
 function check(name, fn) {
@@ -66,6 +66,18 @@ check('waterLevelY respects custom bounds', () => {
   assert.equal(waterLevelY(5, { bottomY: 100, topY: 0 }), 50);
   assert.equal(waterLevelY(0, { bottomY: 100, topY: 0 }), 100);
   assert.equal(waterLevelY(10, { bottomY: 100, topY: 0 }), 0);
+});
+
+check('levelFromY inverts waterLevelY and clamps outside the scene', () => {
+  for (let v = 0; v <= 10; v++) assert.equal(levelFromY(waterLevelY(v)), v);
+  assert.equal(levelFromY(500), 0);
+  assert.equal(levelFromY(-50), 10);
+});
+
+check('levelBand matches the swimmer: below the head, at the neck, under water', () => {
+  assert.equal(levelBand(null), 'unset');
+  assert.deepEqual([0, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(levelBand),
+    ['calm', 'calm', 'rising', 'rising', 'neck', 'neck', 'under', 'under', 'deep', 'deep']);
 });
 
 console.log(`\n${passed} checks passed.`);

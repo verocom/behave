@@ -116,7 +116,26 @@ export const CSS = `
   .card-title { font-size: 0.68rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
   .settings-section-title { font-size: 0.72rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.2px; margin: 20px 2px 8px; }
   .settings-section-title:first-child { margin-top: 2px; }
-  .checkin-card { background: var(--accent-light); }
+  /* Today */
+  .today-hero { padding-bottom: 14px; }
+  .today-question { font-family: var(--font-display); font-size: 1.5rem; font-weight: 800; line-height: 1.2; margin-bottom: 6px; }
+  .level-phrase { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 34px; margin: 10px 0 4px; text-align: center; font-family: var(--font-display); font-size: 1.12rem; font-weight: 700; line-height: 1.25; color: var(--water); }
+  .level-phrase.unset { color: var(--text-muted); font-family: 'Manrope', sans-serif; font-size: 0.86rem; font-weight: 700; }
+  .level-num { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; background: var(--water); color: white; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 800; }
+  .level-range { width: 100%; height: 22px; margin-top: 6px; cursor: pointer; background: transparent; }
+  .chip-sm { padding: 6px 12px; min-height: 32px; font-size: 0.74rem; gap: 6px; }
+  .chip-sm svg { width: 13px; height: 13px; }
+  .daypart-line { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .technique-now { background: var(--accent-light); }
+  .technique-now-title { font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; line-height: 1.2; }
+  .crisis-line { margin-top: 12px; font-size: 0.76rem; font-weight: 700; line-height: 1.5; color: var(--text-muted); }
+  .today-details { display: block; margin: 8px auto 16px; align-self: center; }
+  .today-dots { display: flex; flex-wrap: wrap; gap: 12px; }
+  .today-dot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .today-dot span { width: 38px; height: 38px; border-radius: 50%; background: var(--water); color: white; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .today-dot small { font-size: 0.66rem; font-weight: 700; color: var(--text-dim); }
+  .today-program { align-items: center; }
+  .streak-line { text-align: center; font-size: 0.85rem; font-weight: 800; color: var(--text-muted); margin: 2px 0 14px; }
 
   /* Insights */
   .insight-card { background: var(--surface); }
@@ -191,7 +210,6 @@ export const CSS = `
   .auto-hint { font-size: 0.74rem; color: var(--text-dim); font-weight: 600; margin-top: 6px; }
 
   /* Thermometer */
-  .swim-caption { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; margin-bottom: 10px; }
   .thermo-row { margin-bottom: 14px; }
   .thermo-row-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem; margin-bottom: 4px; }
   .thermo-value { font-weight: 800; font-variant-numeric: tabular-nums; }

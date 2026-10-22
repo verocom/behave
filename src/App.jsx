@@ -19,9 +19,9 @@ import { PRIVACY, TERMS } from './legal';
 import { useModalA11y } from './hooks/useModalA11y';
 import { registerSW } from 'virtual:pwa-register';
 import { matchTags, matchBehavior, getTimeOfDayTag } from './autoTag';
-import { suggestTechniques, COPING_TECHNIQUES } from './copingToolkit';
+import { suggestTechniques, techniqueForMoment, COPING_TECHNIQUES } from './copingToolkit';
 import CopingToolkitModal from './components/CopingToolkitModal';
-import { DAYPARTS, suggestDaypart, aggregateThermometer, waterLevelY } from './thermometer';
+import { DAYPARTS, suggestDaypart, aggregateThermometer, waterLevelY, levelFromY, levelBand } from './thermometer';
 import { CHALLENGES, relevantTagIds, sortBehaviorsByChallenges } from './challenges';
 import { buildInsights, triggerCounts } from './insights';
 import { PROGRAMS, dayStates, programSummary } from './programs';
@@ -50,6 +50,8 @@ const DEFAULT_TAGS = [
 ];
 // Context/time tags always seeded; emotion tags are narrowed to the user's onboarding challenges.
 const STRUCTURAL_TAG_IDS = ['social', 'alone', 'work', 'home', 'morning', 'afternoon', 'evening', 'night', 'replaced'];
+// When, not what — the quick check records the time of day separately (daypart), so these aren't offered there.
+const TIME_TAG_IDS = ['morning', 'afternoon', 'evening', 'night'];
 
 // Offered as one-tap picks in the first-login onboarding flow (src/i18n.js → onboarding.behaviors/replacements)
 const SUGGESTED_BEHAVIORS = [
@@ -162,7 +164,11 @@ function WaveSparkline({ entries, days = 14 }) {
 // Soft, abstract water-level metaphor for emotional intensity: a swimmer silhouette at
 // the shore, water rising above or sitting below the head as `value` (0-10) increases.
 // No face, no distress posture at any value — only the water line communicates intensity.
-function SwimScene({ value }) {
+// With `onChange`, tapping or dragging in the scene sets the level; it's aria-hidden because
+// a native range input next to it stays the accessible control.
+function SwimScene({ value, onChange, height = 150 }) {
+  const svgRef = useRef(null);
+  const dragging = useRef(false);
   const W = 300, H = 180, sandY = 160;
   const waterY = waterLevelY(value);
   const bumps = 5, amp = 3, step = W / bumps;
@@ -172,12 +178,25 @@ function SwimScene({ value }) {
     wave += ` Q${step * i + step / 2},${cy} ${step * (i + 1)},${waterY}`;
   }
   const waterPath = `${wave} L${W},${sandY} L0,${sandY} Z`;
+  const levelAt = e => {
+    const svg = svgRef.current;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
+    return levelFromY(pt.matrixTransform(svg.getScreenCTM().inverse()).y);
+  };
+  const handlers = onChange ? {
+    onPointerDown: e => { dragging.current = true; e.currentTarget.setPointerCapture?.(e.pointerId); onChange(levelAt(e)); },
+    onPointerMove: e => { if (dragging.current) onChange(levelAt(e)); },
+    onPointerUp: () => { dragging.current = false; },
+    onPointerCancel: () => { dragging.current = false; },
+  } : {};
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 150, display: 'block' }} preserveAspectRatio="xMidYMid meet">
+    <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" aria-hidden="true" {...handlers}
+      style={{ width: '100%', height, display: 'block', touchAction: onChange ? 'none' : undefined, cursor: onChange ? 'ns-resize' : undefined }}>
       <rect x="0" y={sandY} width={W} height={H - sandY} fill="var(--gold-flat-bg)"/>
       <ellipse cx="150" cy="88" rx="30" ry="17" fill="var(--text-muted)"/>
       <circle cx="150" cy="58" r="14" fill="var(--text-muted)"/>
-      <path d={waterPath} fill="var(--water)" opacity="0.6"/>
+      <path d={waterPath} fill="var(--water)" opacity={value == null ? 0.35 : 0.6} style={{ transition: 'opacity 0.3s' }}/>
     </svg>
   );
 }
@@ -366,6 +385,8 @@ export default function App() {
   const [savingDay,     setSavingDay]     = useState(false);
   const [thermoDaypart, setThermoDaypart] = useState(() => suggestDaypart());
   const [thermoLevel, setThermoLevel] = useState(null);
+  const [showContext, setShowContext] = useState(false);
+  const [showDayparts, setShowDayparts] = useState(false);
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
   const [confirmAction, setConfirmAction] = useState(null);
@@ -665,7 +686,7 @@ export default function App() {
   async function saveQuickCheck() {
     const hasTags = checkinTags.length > 0;
     const activeEmotionIds = checkinTags.filter(id => EMOTION_TAGS.includes(id) && TAG_MAP[id]);
-    const hasRatings = thermoLevel != null && activeEmotionIds.length > 0;
+    const hasRatings = thermoLevel != null;
     if ((!hasTags && !hasRatings) || !user) return;
     try {
       const writes = [];
@@ -677,13 +698,14 @@ export default function App() {
         }));
       }
       if (hasRatings) {
-        const ratings = Object.fromEntries(activeEmotionIds.map(id => [id, thermoLevel]));
+        // No emotion picked: keep the reading as "overall" so the level still counts in Insights.
+        const ratings = activeEmotionIds.length ? Object.fromEntries(activeEmotionIds.map(id => [id, thermoLevel])) : { overall: thermoLevel };
         writes.push(addDoc(collection(db, 'users', user.uid, 'moodChecks'), {
           timestamp: Date.now(), daypart: thermoDaypart, ratings, createdAt: serverTimestamp(),
         }));
       }
       await Promise.all(writes);
-      setCheckinTags([]); setCheckinBehavior(''); setThermoLevel(null);
+      setCheckinTags([]); setCheckinBehavior(''); setThermoLevel(null); setShowDayparts(false);
       setCheckinSaved(true);
       setTimeout(() => setCheckinSaved(false), 2000);
       toast(t.saved, 'success');
@@ -995,74 +1017,109 @@ export default function App() {
   });
 
   // ── Render views ──────────────────────────────────────────────────────────
-  const renderToday = () => (
-    <>
-      {tags.length > 0 && (
-        <div className="card checkin-card">
-          <div className="card-title">{t.checkinTitle}</div>
-          <div className="tags" style={{ marginBottom: 12 }}>
-            {tags.map(tg => (
-              <span key={tg.id} className={`tag ${checkinTags.includes(tg.id) ? '' : 'off'}`}
-                style={{ background: tg.color + '22', borderColor: tg.color + (checkinTags.includes(tg.id) ? '99' : '44'), color: tg.color }}
-                onClick={() => toggleCheckinTag(tg.id)}>{tg.emoji} {tg.label}</span>
-            ))}
+  const renderToday = () => {
+    const band = levelBand(thermoLevel);
+    const momentTech = techniqueForMoment(thermoLevel, checkinTags, relevantTagIds(userProfile?.challenges));
+    const today = new Date().toDateString();
+    const todayChecks = moodChecks.filter(m => new Date(m.timestamp).toDateString() === today).sort((a, b) => a.timestamp - b.timestamp);
+    const emotionTags = EMOTION_TAGS.map(id => TAG_MAP[id]).filter(Boolean);
+    const contextTags = tags.filter(tg => !EMOTION_TAGS.includes(tg.id) && !TIME_TAG_IDS.includes(tg.id));
+    const basics = PROGRAMS.find(p => p.id === 'basics');
+    const prog = programSummary(basics, programProgress.basics);
+    const pick = tg => {
+      const on = checkinTags.includes(tg.id);
+      return (
+        <button key={tg.id} className={`chip ${on ? 'on' : ''}`} style={on ? { background: tg.color, borderColor: tg.color, color: 'white' } : undefined}
+          onClick={() => toggleCheckinTag(tg.id)}>{tg.emoji} {tg.label}</button>
+      );
+    };
+    return (
+      <>
+        <div className="card today-hero">
+          <div className="today-question">{t.waterQuestion}</div>
+          <SwimScene value={thermoLevel} onChange={setThermoLevel} height={190}/>
+          <div className={`level-phrase ${band}`}>
+            {thermoLevel != null && <span className="level-num">{thermoLevel}</span>}
+            <span>{t.levelPhrases[band]}</span>
           </div>
-          {checkinTags.some(id => EMOTION_TAGS.includes(id) && TAG_MAP[id]) && (
-            <>
-              <div className="filter-bar" style={{ marginBottom: 10 }}>
-                {DAYPARTS.map(dp => (
-                  <div key={dp} className={`chip ${thermoDaypart === dp ? 'on' : ''}`} onClick={() => setThermoDaypart(dp)}>{t.dayparts[dp]}</div>
-                ))}
-              </div>
-              <div className="swim-caption">
-                {t.swimApplyTo}
-                <div className="tags" style={{ marginTop: 6 }}>
-                  {checkinTags.filter(id => EMOTION_TAGS.includes(id) && TAG_MAP[id]).map(id => {
-                    const tg = TAG_MAP[id];
-                    return (
-                      <span key={id} className="tag readonly" style={{ background: tg.color + '22', borderColor: tg.color + '44', color: tg.color }}>
-                        {tg.emoji} {tg.label}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-              <SwimScene value={thermoLevel}/>
-              <div className="thermo-row">
-                <div className="thermo-row-head">
-                  <span style={{ color: 'var(--water)', fontWeight: 700 }}>{t.swimLevel}</span>
-                  <span className="thermo-value" style={{ color: 'var(--water)' }}>{thermoLevel ?? '—'}</span>
-                </div>
-                <input type="range" min="0" max="10" value={thermoLevel ?? 0} style={{ accentColor: 'var(--water)' }}
-                  onChange={e => setThermoLevel(Number(e.target.value))}/>
-              </div>
-            </>
-          )}
-          {behaviors.length > 0 && checkinTags.length > 0 && (
-            <div className="field" style={{ marginBottom: 12 }}>
-              <select value={checkinBehavior} onChange={e => setCheckinBehavior(e.target.value)}>
-                <option value="">{t.checkinNoBehavior}</option>
-                {behaviors.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
-              </select>
-            </div>
-          )}
-          {suggestTechniques(checkinTags).length > 0 && (
-            <div className="tags" style={{ marginBottom: 12 }}>
-              {suggestTechniques(checkinTags).map(tc => (
-                <span key={tc.id} className="tag readonly" style={{ background: 'var(--accent-light)', borderColor: 'var(--accent)', color: 'var(--accent-deep)' }}>
-                  💡 {t.copingTechniques[tc.id].title}
-                </span>
-              ))}
-            </div>
-          )}
-          <button className="btn btn-ghost btn-full" style={{ marginBottom: 8 }} onClick={openQuickDetails}>🎙️ {t.addDetails}</button>
-          <button className="btn btn-primary btn-full" onClick={saveQuickCheck} disabled={checkinTags.length === 0 && thermoLevel === null}>
-            {checkinSaved ? t.checkinSaved : t.checkinLog}
-          </button>
+          <input className="level-range" type="range" min="0" max="10" value={thermoLevel ?? 0} aria-label={t.waterQuestion}
+            style={{ accentColor: 'var(--water)' }} onChange={e => setThermoLevel(Number(e.target.value))}/>
         </div>
-      )}
-    </>
-  );
+
+        {(emotionTags.length > 0 || contextTags.length > 0 || behaviors.length > 0) && (
+          <div className="card">
+            <div className="card-title">{t.whatsHere}</div>
+            <div className="tags">{emotionTags.map(pick)}</div>
+            <div className="daypart-line">
+              {showDayparts
+                ? DAYPARTS.map(dp => <button key={dp} className={`chip chip-sm ${thermoDaypart === dp ? 'on' : ''}`} onClick={() => { setThermoDaypart(dp); setShowDayparts(false); }}>{t.dayparts[dp]}</button>)
+                : <button className="chip chip-sm" onClick={() => setShowDayparts(true)}>🕐 {t.dayparts[thermoDaypart]} <PencilIcon/></button>}
+            </div>
+            {showContext ? (
+              <>
+                {contextTags.length > 0 && <div className="tags" style={{ marginTop: 14 }}>{contextTags.map(pick)}</div>}
+                {behaviors.length > 0 && (
+                  <div className="field" style={{ marginTop: 14, marginBottom: 0 }}>
+                    <label>{t.linkedBehavior}</label>
+                    <select value={checkinBehavior} onChange={e => setCheckinBehavior(e.target.value)}>
+                      <option value="">{t.checkinNoBehavior}</option>
+                      {behaviors.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+                    </select>
+                  </div>
+                )}
+              </>
+            ) : (
+              <button className="onb-link onb-link-muted" style={{ marginTop: 6 }} onClick={() => setShowContext(true)}>{t.addContext}</button>
+            )}
+          </div>
+        )}
+
+        {momentTech && (
+          <div className="card technique-now">
+            <div className="card-title">💡 {t.techniqueNow}</div>
+            <div className="technique-now-title">{t.copingTechniques[momentTech].title}</div>
+            <p className="technique-howto">{t.copingTechniques[momentTech].how}</p>
+            {band === 'deep' && <p className="crisis-line">{t.copingCrisisNote}</p>}
+          </div>
+        )}
+
+        <button className="btn btn-primary btn-full" onClick={saveQuickCheck} disabled={checkinTags.length === 0 && thermoLevel === null}>
+          {checkinSaved ? t.checkinSaved : t.logMoment}
+        </button>
+        <button className="onb-link today-details" onClick={openQuickDetails}>🎙️ {t.addDetails}</button>
+
+        {todayChecks.length > 0 && (
+          <div className="card">
+            <div className="card-title">{t.todaySummary(todayChecks.length)}</div>
+            <div className="today-dots">
+              {todayChecks.map(m => {
+                const values = Object.values(m.ratings || {});
+                const level = Math.round(values.reduce((a, v) => a + v, 0) / (values.length || 1));
+                return (
+                  <div key={m.id} className="today-dot">
+                    <span style={{ opacity: 0.35 + (level / 10) * 0.65 }}>{level}</span>
+                    <small>{new Date(m.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</small>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <button className="card today-program" onClick={() => (prog.nextState === 'current' ? openProgramDay('basics', prog.nextIndex) : setView('programs'))}>
+          <span className="program-emoji-sm">{basics.emoji}</span>
+          <span className="program-locked-text">
+            <span className="card-title" style={{ margin: 0 }}>{t.yourProgram}</span>
+            <span className="program-locked-title">{prog.finished ? t.programDone : programCopy.basics.days[prog.nextIndex].title}</span>
+            {!prog.finished && <span className="program-locked-desc">{prog.nextState === 'current' ? t.dayOf(prog.nextIndex + 1, prog.total) : t.nextDayTomorrow}</span>}
+          </span>
+          {prog.nextState === 'current' && <span className="day-go" aria-hidden="true">→</span>}
+        </button>
+
+        {userProfile?.streakEnabled && stats.streak > 1 && <p className="streak-line">{t.streakDays(stats.streak)}</p>}
+      </>
+    );
+  };
 
   const renderJournal = () => {
     const grouped = groupByDay(filtered);
@@ -1407,7 +1464,7 @@ export default function App() {
               <div className="greeting-text">
                 {t.greeting} <span className="greeting-name">{(user.displayName || user.email?.split('@')[0] || '').split(' ')[0]}</span> <span className="greeting-wave">👋</span>
               </div>
-              <div className="greeting-sub">{t.tagline}</div>
+              <div className="greeting-sub">{new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
             </div>
           ) : (
             <div className="logo">

@@ -54,3 +54,19 @@ export function waterLevelY(value, { bottomY = 130, topY = 20 } = {}) {
   const clamped = Math.max(0, Math.min(10, value ?? 0));
   return bottomY - (clamped / 10) * (bottomY - topY);
 }
+
+/** Inverse of waterLevelY: where the finger touches the scene → whole 0-10 level. */
+export function levelFromY(y, { bottomY = 130, topY = 20 } = {}) {
+  const raw = ((bottomY - y) / (bottomY - topY)) * 10;
+  return Math.max(0, Math.min(10, Math.round(raw)));
+}
+
+/** Plain-language band for a level, matching the swimmer: below the head 0-4, neck ~5-6, under 7+. */
+export function levelBand(value) {
+  if (value == null) return 'unset';
+  if (value <= 2) return 'calm';
+  if (value <= 4) return 'rising';
+  if (value <= 6) return 'neck';
+  if (value <= 8) return 'under';
+  return 'deep';
+}

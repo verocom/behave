@@ -21,7 +21,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { matchTags, matchBehavior, getTimeOfDayTag } from './autoTag';
 import { suggestTechniques, COPING_TECHNIQUES } from './copingToolkit';
 import CopingToolkitModal from './components/CopingToolkitModal';
-import { DAYPARTS, suggestDaypart, aggregateThermometer } from './thermometer';
+import { DAYPARTS, suggestDaypart, aggregateThermometer, waterLevelY } from './thermometer';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 // Seeded into a new user's own `tags` collection on first load, using these exact
@@ -148,6 +148,29 @@ function WaveSparkline({ entries, days = 14 }) {
       <path d={fill} fill="url(#wg)"/>
       <path d={curve} fill="none" style={{ stroke: 'var(--accent)' }} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
       {pts.map((p, i) => buckets[i] > 0 && <circle key={i} cx={p[0]} cy={p[1]} r="4" style={{ fill: 'var(--accent)' }} opacity="0.9"/>)}
+    </svg>
+  );
+}
+
+// Soft, abstract water-level metaphor for emotional intensity: a swimmer silhouette at
+// the shore, water rising above or sitting below the head as `value` (0-10) increases.
+// No face, no distress posture at any value — only the water line communicates intensity.
+function SwimScene({ value }) {
+  const W = 300, H = 180, sandY = 160;
+  const waterY = waterLevelY(value);
+  const bumps = 5, amp = 3, step = W / bumps;
+  let wave = `M0,${waterY}`;
+  for (let i = 0; i < bumps; i++) {
+    const cy = i % 2 === 0 ? waterY - amp : waterY + amp;
+    wave += ` Q${step * i + step / 2},${cy} ${step * (i + 1)},${waterY}`;
+  }
+  const waterPath = `${wave} L${W},${sandY} L0,${sandY} Z`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 150, display: 'block' }} preserveAspectRatio="xMidYMid meet">
+      <rect x="0" y={sandY} width={W} height={H - sandY} fill="var(--gold-flat-bg)"/>
+      <ellipse cx="150" cy="88" rx="30" ry="17" fill="var(--text-muted)"/>
+      <circle cx="150" cy="58" r="14" fill="var(--text-muted)"/>
+      <path d={waterPath} fill="var(--water)" opacity="0.6"/>
     </svg>
   );
 }
@@ -288,7 +311,7 @@ function AuthScreen({ t, uiLang, onLegal }) {
   return (
     <div className="auth-screen">
       <div className="auth-orb"/>
-      <div className="auth-wordmark"><span className="be">Be</span><span className="have">have</span></div>
+      <div className="auth-wordmark"><span className="limit">Limit</span><span className="less">less</span></div>
       <div className="auth-tagline">{t.heroTagline}</div>
 
       <div className="auth-card">
@@ -374,7 +397,7 @@ export default function App() {
   const [showCopingToolkit, setShowCopingToolkit]  = useState(false);
   const [moodChecks,    setMoodChecks]    = useState([]);
   const [thermoDaypart, setThermoDaypart] = useState(() => suggestDaypart());
-  const [thermoRatings, setThermoRatings] = useState({});
+  const [thermoLevel, setThermoLevel] = useState(null);
   const [showProgressDetail, setShowProgressDetail] = useState(false);
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
@@ -605,7 +628,7 @@ export default function App() {
     setEditingEntryId(null);
     setTranscript('');
     setEntryForm({ behaviorId: checkinBehavior, tags: checkinTags, replacement: '', note: '' });
-    setCheckinTags([]); setCheckinBehavior(''); setThermoRatings({});
+    setCheckinTags([]); setCheckinBehavior(''); setThermoLevel(null);
     setRecErr(''); setShowEntry(true);
   }
   async function saveEntry() {
@@ -637,14 +660,16 @@ export default function App() {
       toast(t.toastError, 'error');
     }
   }
-  const setThermoRating = (tagId, value) => setThermoRatings(p => ({ ...p, [tagId]: value }));
   // Unified quick-check save: tags → a lightweight `entries` doc (same shape the old
-  // check-in card wrote), touched intensity sliders → a `moodChecks` doc. Either, both,
+  // check-in card wrote), a touched water level → a `moodChecks` doc. Either, both,
   // or neither can fire from one Save tap — MoodTimeline/ThermometerGrid read the same
-  // collections as before, so nothing downstream needs to change.
+  // collections as before, so nothing downstream needs to change. The swim scene shows
+  // one combined water level, but it's broadcast to every active emotion tag's rating
+  // on save so the Stats grid keeps its per-emotion detail exactly as before.
   async function saveQuickCheck() {
     const hasTags = checkinTags.length > 0;
-    const hasRatings = Object.keys(thermoRatings).length > 0;
+    const activeEmotionIds = checkinTags.filter(id => EMOTION_TAGS.includes(id) && TAG_MAP[id]);
+    const hasRatings = thermoLevel != null && activeEmotionIds.length > 0;
     if ((!hasTags && !hasRatings) || !user) return;
     try {
       const writes = [];
@@ -656,12 +681,13 @@ export default function App() {
         }));
       }
       if (hasRatings) {
+        const ratings = Object.fromEntries(activeEmotionIds.map(id => [id, thermoLevel]));
         writes.push(addDoc(collection(db, 'users', user.uid, 'moodChecks'), {
-          timestamp: Date.now(), daypart: thermoDaypart, ratings: thermoRatings, createdAt: serverTimestamp(),
+          timestamp: Date.now(), daypart: thermoDaypart, ratings, createdAt: serverTimestamp(),
         }));
       }
       await Promise.all(writes);
-      setCheckinTags([]); setCheckinBehavior(''); setThermoRatings({});
+      setCheckinTags([]); setCheckinBehavior(''); setThermoLevel(null);
       setCheckinSaved(true);
       setTimeout(() => setCheckinSaved(false), 2000);
       toast(t.saved, 'success');
@@ -778,7 +804,7 @@ export default function App() {
       exportedAt: new Date().toISOString(), version: 1,
       profile: userProfile || {}, behaviors, tags, entries, moodChecks,
     };
-    downloadFile(JSON.stringify(payload, null, 2), 'application/json', `behave-export-${new Date().toISOString().slice(0, 10)}.json`);
+    downloadFile(JSON.stringify(payload, null, 2), 'application/json', `limitless-export-${new Date().toISOString().slice(0, 10)}.json`);
   }
   function csvField(value) {
     const text = value == null ? '' : String(value);
@@ -792,7 +818,7 @@ export default function App() {
       entry.transcript || '', entry.replacement || '', entry.note || '',
       (entry.tags || []).map(id => TAG_MAP[id]?.label || id).join(';'), entry.type || '',
     ]));
-    downloadFile(rows.map(row => row.map(csvField).join(',')).join('\n'), 'text/csv;charset=utf-8', `behave-export-${new Date().toISOString().slice(0, 10)}.csv`);
+    downloadFile(rows.map(row => row.map(csvField).join(',')).join('\n'), 'text/csv;charset=utf-8', `limitless-export-${new Date().toISOString().slice(0, 10)}.csv`);
   }
   async function signOutUser() {
     try {
@@ -957,20 +983,28 @@ export default function App() {
                   <div key={dp} className={`chip ${thermoDaypart === dp ? 'on' : ''}`} onClick={() => setThermoDaypart(dp)}>{t.dayparts[dp]}</div>
                 ))}
               </div>
-              {checkinTags.filter(id => EMOTION_TAGS.includes(id) && TAG_MAP[id]).map(id => {
-                const tg = TAG_MAP[id];
-                const value = thermoRatings[id] ?? 0;
-                return (
-                  <div key={id} className="thermo-row">
-                    <div className="thermo-row-head">
-                      <span style={{ color: tg.color, fontWeight: 700 }}>{tg.emoji} {tg.label}</span>
-                      <span className="thermo-value" style={{ color: tg.color }}>{thermoRatings[id] ?? '—'}</span>
-                    </div>
-                    <input type="range" min="0" max="10" value={value} style={{ accentColor: tg.color }}
-                      onChange={e => setThermoRating(id, Number(e.target.value))}/>
-                  </div>
-                );
-              })}
+              <div className="swim-caption">
+                {t.swimApplyTo}
+                <div className="tags" style={{ marginTop: 6 }}>
+                  {checkinTags.filter(id => EMOTION_TAGS.includes(id) && TAG_MAP[id]).map(id => {
+                    const tg = TAG_MAP[id];
+                    return (
+                      <span key={id} className="tag readonly" style={{ background: tg.color + '22', borderColor: tg.color + '44', color: tg.color }}>
+                        {tg.emoji} {tg.label}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+              <SwimScene value={thermoLevel}/>
+              <div className="thermo-row">
+                <div className="thermo-row-head">
+                  <span style={{ color: 'var(--water)', fontWeight: 700 }}>{t.swimLevel}</span>
+                  <span className="thermo-value" style={{ color: 'var(--water)' }}>{thermoLevel ?? '—'}</span>
+                </div>
+                <input type="range" min="0" max="10" value={thermoLevel ?? 0} style={{ accentColor: 'var(--water)' }}
+                  onChange={e => setThermoLevel(Number(e.target.value))}/>
+              </div>
             </>
           )}
           {behaviors.length > 0 && checkinTags.length > 0 && (
@@ -991,7 +1025,7 @@ export default function App() {
             </div>
           )}
           <button className="btn btn-ghost btn-full" style={{ marginBottom: 8 }} onClick={openQuickDetails}>🎙️ {t.addDetails}</button>
-          <button className="btn btn-primary btn-full" onClick={saveQuickCheck} disabled={checkinTags.length === 0 && Object.keys(thermoRatings).length === 0}>
+          <button className="btn btn-primary btn-full" onClick={saveQuickCheck} disabled={checkinTags.length === 0 && thermoLevel === null}>
             {checkinSaved ? t.checkinSaved : t.checkinLog}
           </button>
         </div>
@@ -1244,7 +1278,7 @@ export default function App() {
             </div>
           ) : (
             <div className="logo">
-              <div className="logo-name"><span className="be">Be</span><span className="have">have</span></div>
+              <div className="logo-name"><span className="limit">Limit</span><span className="less">less</span></div>
               <div className="logo-sub">{t.tagline}</div>
             </div>
           )}

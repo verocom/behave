@@ -1,4 +1,4 @@
-// ── BeHave i18n ────────────────────────────────────────────────────────────────
+// ── Limitless i18n ─────────────────────────────────────────────────────────────
 export const UI_LANGS = [
   { code: 'en', flag: '🇨🇦', label: 'English' },
   { code: 'fr', flag: '🇶🇨', label: 'Français' },
@@ -33,7 +33,7 @@ export const STRINGS = {
     haveAccount: 'Already have one?', signInLink: 'Sign in',
     signOut: 'Sign out',
     loading: 'Loading…',
-    reload: 'Reload', close: 'Close', legal: 'Legal', terms: 'Terms', privacy: 'Privacy', errorTitle: 'Something went wrong', errorBody: 'BeHave could not load this screen.',
+    reload: 'Reload', close: 'Close', legal: 'Legal', terms: 'Terms', privacy: 'Privacy', errorTitle: 'Something went wrong', errorBody: 'Limitless could not load this screen.',
     legalAgreement: 'By continuing you agree to the Terms and Privacy Policy',
     toastError: "Couldn't save — check your connection", saved: 'Saved ✓', deleted: 'Deleted ✓',
     confirm: 'Confirm', deleteLabel: 'Delete', deleteBehaviorTitle: 'Delete behavior?', deleteTagTitle: 'Delete tag?', deleteEntryTitle: 'Delete entry?',
@@ -58,6 +58,7 @@ export const STRINGS = {
     checkinTitle: 'How are you feeling right now?',
     checkinLog: 'Log it ✓', checkinSaved: 'Logged! 🌱',
     checkinNoBehavior: 'No behavior linked',
+    swimApplyTo: 'This water level applies to:', swimLevel: 'Water level',
     // Stats
     activity14: 'Activity · 14 Days', d14ago: '–14d', today: 'Today',
     moodTimeline: 'Mood · 14 Days',
@@ -120,7 +121,7 @@ export const STRINGS = {
       evening: 'Evening', night: 'Night', replaced: 'Replaced ✓', strongcraving: 'Strong craving',
     },
     onboarding: {
-      step1Title: 'Welcome to BeHave 🌱', step1Body: "A private space to notice your patterns and gently build better ones. Let's set up your journal — takes under a minute.",
+      step1Title: 'Welcome to Limitless 🌱', step1Body: "A private space to notice your patterns and gently build better ones. Let's set up your journal — takes under a minute.",
       step2Title: 'What do you want to track?', step2Body: 'Pick the habits you want to become more aware of. You can add cost per occurrence later.',
       addCustom: 'Add your own', customBehaviorPh: 'E.g. Nail biting…',
       skip: 'Skip', next: 'Next', back: 'Back', finish: "Let's go →",
@@ -184,7 +185,7 @@ export const STRINGS = {
     haveAccount: 'Déjà un compte?', signInLink: 'Connecte-toi',
     signOut: 'Se déconnecter',
     loading: 'Chargement…',
-    reload: 'Recharger', close: 'Fermer', legal: 'Mentions légales', terms: 'Conditions', privacy: 'Confidentialité', errorTitle: 'Une erreur est survenue', errorBody: 'BeHave ne peut pas charger cet écran.',
+    reload: 'Recharger', close: 'Fermer', legal: 'Mentions légales', terms: 'Conditions', privacy: 'Confidentialité', errorTitle: 'Une erreur est survenue', errorBody: 'Limitless ne peut pas charger cet écran.',
     legalAgreement: 'En continuant, vous acceptez les Conditions et la Politique de confidentialité',
     toastError: 'Impossible de sauvegarder — vérifie ta connexion', saved: 'Enregistré ✓', deleted: 'Supprimé ✓',
     confirm: 'Confirmer', deleteLabel: 'Supprimer', deleteBehaviorTitle: 'Supprimer ce comportement?', deleteTagTitle: 'Supprimer ce tag?', deleteEntryTitle: 'Supprimer cette entrée?',
@@ -207,6 +208,7 @@ export const STRINGS = {
     checkinTitle: 'Comment tu te sens là, maintenant?',
     checkinLog: 'Enregistrer ✓', checkinSaved: 'Enregistré! 🌱',
     checkinNoBehavior: 'Aucun comportement lié',
+    swimApplyTo: 'Ce niveau d’eau s’applique à :', swimLevel: 'Niveau d’eau',
     activity14: 'Activité · 14 jours', d14ago: '–14 j', today: 'Aujourd\u2019hui',
     moodTimeline: 'Humeur · 14 jours',
     totalEntries: 'Entrées totales', thisWeek: 'Cette semaine',
@@ -263,7 +265,7 @@ export const STRINGS = {
       evening: 'Soir', night: 'Nuit', replaced: 'Remplacé ✓', strongcraving: 'Craving fort',
     },
     onboarding: {
-      step1Title: 'Bienvenue sur BeHave 🌱', step1Body: "Un espace privé pour observer tes patterns et en bâtir de meilleurs, en douceur. Configurons ton journal — moins d'une minute.",
+      step1Title: 'Bienvenue sur Limitless 🌱', step1Body: "Un espace privé pour observer tes patterns et en bâtir de meilleurs, en douceur. Configurons ton journal — moins d'une minute.",
       step2Title: 'Qu’est-ce que tu veux suivre?', step2Body: 'Choisis les habitudes dont tu veux devenir plus conscient·e. Tu pourras ajouter un coût par occurrence plus tard.',
       addCustom: 'Ajoute le tien', customBehaviorPh: 'Ex. : Se ronger les ongles…',
       skip: 'Passer', next: 'Suivant', back: 'Retour', finish: "C'est parti →",
@@ -325,7 +327,7 @@ export const STRINGS = {
     haveAccount: '¿Ya tienes una?', signInLink: 'Inicia sesión',
     signOut: 'Cerrar sesión',
     loading: 'Cargando…',
-    reload: 'Recargar', close: 'Cerrar', legal: 'Información legal', terms: 'Términos', privacy: 'Privacidad', errorTitle: 'Algo salió mal', errorBody: 'BeHave no pudo cargar esta pantalla.',
+    reload: 'Recargar', close: 'Cerrar', legal: 'Información legal', terms: 'Términos', privacy: 'Privacidad', errorTitle: 'Algo salió mal', errorBody: 'Limitless no pudo cargar esta pantalla.',
     legalAgreement: 'Al continuar aceptas los Términos y la Política de privacidad',
     toastError: 'No se pudo guardar — comprueba tu conexión', saved: 'Guardado ✓', deleted: 'Eliminado ✓',
     confirm: 'Confirmar', deleteLabel: 'Eliminar', deleteBehaviorTitle: '¿Eliminar comportamiento?', deleteTagTitle: '¿Eliminar etiqueta?', deleteEntryTitle: '¿Eliminar entrada?',
@@ -348,6 +350,7 @@ export const STRINGS = {
     checkinTitle: '¿Cómo te sientes ahora mismo?',
     checkinLog: 'Registrar ✓', checkinSaved: '¡Registrado! 🌱',
     checkinNoBehavior: 'Sin comportamiento vinculado',
+    swimApplyTo: 'Este nivel de agua se aplica a:', swimLevel: 'Nivel de agua',
     activity14: 'Actividad · 14 días', d14ago: '–14 d', today: 'Hoy',
     moodTimeline: 'Ánimo · 14 días',
     totalEntries: 'Entradas totales', thisWeek: 'Esta semana',
@@ -404,7 +407,7 @@ export const STRINGS = {
       evening: 'Noche', night: 'Madrugada', replaced: 'Reemplazado ✓', strongcraving: 'Antojo fuerte',
     },
     onboarding: {
-      step1Title: 'Bienvenido a BeHave 🌱', step1Body: 'Un espacio privado para observar tus patrones y construir mejores, con calma. Configuremos tu diario — menos de un minuto.',
+      step1Title: 'Bienvenido a Limitless 🌱', step1Body: 'Un espacio privado para observar tus patrones y construir mejores, con calma. Configuremos tu diario — menos de un minuto.',
       step2Title: '¿Qué quieres seguir?', step2Body: 'Elige los hábitos de los que quieres ser más consciente. Podrás añadir un costo por vez más tarde.',
       addCustom: 'Añade el tuyo', customBehaviorPh: 'Ej.: Morderse las uñas…',
       skip: 'Omitir', next: 'Siguiente', back: 'Atrás', finish: 'Vamos →',

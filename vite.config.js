@@ -8,12 +8,12 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'BeHave',
-        short_name: 'BeHave',
+        name: 'Limitless',
+        short_name: 'Limitless',
         description: 'Track, understand and change your patterns.',
         start_url: '/',
-        theme_color: '#CDEFEC',
-        background_color: '#CDEFEC',
+        theme_color: '#D6EEF7',
+        background_color: '#D6EEF7',
         display: 'standalone',
         orientation: 'portrait',
         categories: ['health', 'lifestyle'],

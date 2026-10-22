@@ -1,6 +1,6 @@
 // Standalone verification for src/thermometer.js — run with: node scripts/check-thermometer.mjs
 import assert from 'node:assert/strict';
-import { suggestDaypart, aggregateThermometer, DAYPARTS } from '../src/thermometer.js';
+import { suggestDaypart, aggregateThermometer, waterLevelY, DAYPARTS } from '../src/thermometer.js';
 
 let passed = 0;
 function check(name, fn) {
@@ -44,6 +44,28 @@ check('aggregateThermometer respects the days window', () => {
 check('aggregateThermometer handles an empty list', () => {
   const result = aggregateThermometer([], ['anxiety']);
   assert.equal(result.anxiety.wake, null);
+});
+
+check('waterLevelY spans bottomY at 0 to topY at 10, with 5 at the midpoint', () => {
+  assert.equal(waterLevelY(0), 130);
+  assert.equal(waterLevelY(10), 20);
+  assert.equal(waterLevelY(5), 75);
+});
+
+check('waterLevelY clamps out-of-range values', () => {
+  assert.equal(waterLevelY(-3), 130);
+  assert.equal(waterLevelY(15), 20);
+});
+
+check('waterLevelY treats a missing value as 0', () => {
+  assert.equal(waterLevelY(null), 130);
+  assert.equal(waterLevelY(undefined), 130);
+});
+
+check('waterLevelY respects custom bounds', () => {
+  assert.equal(waterLevelY(5, { bottomY: 100, topY: 0 }), 50);
+  assert.equal(waterLevelY(0, { bottomY: 100, topY: 0 }), 100);
+  assert.equal(waterLevelY(10, { bottomY: 100, topY: 0 }), 0);
 });
 
 console.log(`\n${passed} checks passed.`);

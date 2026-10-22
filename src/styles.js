@@ -5,12 +5,13 @@ export const CSS = `
 
   .app {
     --font-display: 'Baloo 2', sans-serif;
-    --accent: #0EA5A4; --accent-deep: #0A7A79;
-    --accent-light: rgba(14,165,164,0.12); --accent-ring: rgba(14,165,164,0.28);
-    --warm: #FF6B5E; --warm-deep: #E14F42; --warm-light: rgba(255,107,94,0.14);
-    --gold: #FFB734; --gold-deep: #E0961A; --gold-light: rgba(255,183,52,0.18);
+    --accent: #1C86D9; --accent-deep: #0B5A8A;
+    --accent-light: rgba(28,134,217,0.12); --accent-ring: rgba(28,134,217,0.28);
+    --warm: #FF7A5C; --warm-deep: #E05A3E; --warm-light: rgba(255,122,92,0.14);
+    --gold: #FFC24B; --gold-deep: #E0A020; --gold-light: rgba(255,194,75,0.18);
     --success: #14A974; --danger: #FF5A52;
-    --bg: #CDEFEC; --surface: #FFFFFF; --surface2: #EEF6F5; --surface3: #E1EEEC;
+    --water: #0E6FA8;
+    --bg: #D6EEF7; --surface: #FFFFFF; --surface2: #EEF6F5; --surface3: #E1EEEC;
     --surface-glass: rgba(255,255,255,0.86);
     --warm-flat-bg: #FFDAD3; --gold-flat-bg: #FFECC2;
     --border: #E0EDEB; --text: #0E2322; --text-muted: #5C7572; --text-dim: #9EB4B1;
@@ -25,12 +26,13 @@ export const CSS = `
     transition: background-color 0.3s, color 0.3s;
   }
   .app.dark {
-    --accent: #2FD9CE; --accent-deep: #6BEFE4;
-    --accent-light: rgba(47,217,206,0.14); --accent-ring: rgba(47,217,206,0.3);
+    --accent: #4FB4F0; --accent-deep: #8CD2FF;
+    --accent-light: rgba(79,180,240,0.14); --accent-ring: rgba(79,180,240,0.3);
     --warm: #FF9387; --warm-deep: #FFB3A8; --warm-light: rgba(255,147,135,0.14);
     --gold: #FFCB5C; --gold-deep: #FFDD8C; --gold-light: rgba(255,203,92,0.16);
     --success: #4FE2A8; --danger: #FF7A72;
-    --bg: #0E2E2B; --surface: #112220; --surface2: #172A28; --surface3: #1F3532;
+    --water: #1E88C9;
+    --bg: #071C2E; --surface: #112220; --surface2: #172A28; --surface3: #1F3532;
     --surface-glass: rgba(17,34,32,0.86);
     --warm-flat-bg: #4A2622; --gold-flat-bg: #4A3514;
     --border: #203531; --text: #EAF7F4; --text-muted: #8CA9A5; --text-dim: #4C615E;
@@ -44,8 +46,8 @@ export const CSS = `
   .header { padding: calc(18px + env(safe-area-inset-top)) 18px 4px; display: flex; align-items: center; justify-content: space-between; position: relative; gap: 10px; }
   .logo { position: relative; z-index: 1; line-height: 1; cursor: default; animation: fadeUp 0.5s cubic-bezier(.2,.8,.2,1) both; }
   .logo-name { font-family: var(--font-display); font-size: 1.7rem; line-height: 1; letter-spacing: -0.3px; font-weight: 700; }
-  .logo-name .be { font-weight: 500; color: var(--text-muted); }
-  .logo-name .have { font-weight: 800; color: var(--accent); }
+  .logo-name .limit { font-weight: 500; color: var(--text-muted); }
+  .logo-name .less { font-weight: 800; color: var(--accent); }
   .logo-sub { font-size: 0.66rem; color: var(--text-dim); font-weight: 700; margin-top: 3px; letter-spacing: 1.4px; text-transform: uppercase; }
   .greeting { position: relative; z-index: 1; line-height: 1; animation: fadeUp 0.5s cubic-bezier(.2,.8,.2,1) both; min-width: 0; }
   .greeting-text { font-family: var(--font-display); font-size: 1.55rem; line-height: 1.2; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -135,6 +137,7 @@ export const CSS = `
   .auto-hint { font-size: 0.74rem; color: var(--text-dim); font-weight: 600; margin-top: 6px; }
 
   /* Thermometer */
+  .swim-caption { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; margin-bottom: 10px; }
   .thermo-row { margin-bottom: 14px; }
   .thermo-row-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem; margin-bottom: 4px; }
   .thermo-value { font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -251,8 +254,8 @@ export const CSS = `
   .auth-orb::before { content: ''; position: absolute; width: 26px; height: 26px; border-radius: 50%; background: var(--gold); top: -8px; right: -10px; }
   .auth-orb::after { content: ''; position: absolute; width: 18px; height: 18px; border-radius: 50%; background: var(--warm); bottom: -2px; left: -10px; }
   .auth-wordmark { font-family: var(--font-display); font-size: 2.9rem; line-height: 1; letter-spacing: -1px; margin-bottom: 8px; text-align: center; animation: fadeUp 0.5s cubic-bezier(.2,.8,.2,1) both; }
-  .auth-wordmark .be { font-weight: 500; color: var(--text-muted); }
-  .auth-wordmark .have { font-weight: 800; color: var(--accent); }
+  .auth-wordmark .limit { font-weight: 500; color: var(--text-muted); }
+  .auth-wordmark .less { font-weight: 800; color: var(--accent); }
   .auth-tagline { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-align: center; margin-bottom: 28px; animation: fadeUp 0.5s 0.05s cubic-bezier(.2,.8,.2,1) both; }
   .auth-card { background: var(--surface); border-radius: var(--radius); padding: 24px 20px; box-shadow: var(--shadow-lg); animation: fadeUp 0.5s 0.1s cubic-bezier(.2,.8,.2,1) both; }
   .app.dark .auth-card { border: 1px solid var(--border); }

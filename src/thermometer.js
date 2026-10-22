@@ -41,3 +41,16 @@ export function aggregateThermometer(moodChecks, traitIds, days = 14) {
   });
   return result;
 }
+
+/**
+ * Maps a 0-10 intensity value to the water surface's y-coordinate in the swim-scene
+ * illustration (src/App.jsx's SwimScene). `bottomY` is where the water sits at value 0
+ * (low, calm — below the swimmer), `topY` is where it sits at value 10 (high — above the
+ * swimmer's head); SVG y grows downward so bottomY > topY. The defaults are calibrated
+ * against SwimScene's own geometry so that ~5 lands the water right at the swimmer's neck.
+ * Values outside 0-10 are clamped; a missing/null value is treated as 0.
+ */
+export function waterLevelY(value, { bottomY = 130, topY = 20 } = {}) {
+  const clamped = Math.max(0, Math.min(10, value ?? 0));
+  return bottomY - (clamped / 10) * (bottomY - topY);
+}

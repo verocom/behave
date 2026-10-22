@@ -1,4 +1,4 @@
-# BeHave — Behavior Journal
+# Limitless — Behavior Journal
 
 Track, understand and change your patterns.
 

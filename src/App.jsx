@@ -23,6 +23,7 @@ import { suggestTechniques, COPING_TECHNIQUES } from './copingToolkit';
 import CopingToolkitModal from './components/CopingToolkitModal';
 import { DAYPARTS, suggestDaypart, aggregateThermometer, waterLevelY } from './thermometer';
 import { CHALLENGES, relevantTagIds, sortBehaviorsByChallenges } from './challenges';
+import { buildInsights, triggerCounts } from './insights';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 // Seeded into a new user's own `tags` collection on first load, using these exact
@@ -178,58 +179,8 @@ function SwimScene({ value }) {
   );
 }
 
-// ── Mood Timeline (emotion heatmap over 14 days) ──────────────────────────────
+// ── Emotion tags (also the thermometer's traits) ──────────────────────────────
 const EMOTION_TAGS = ['anxiety', 'stress', 'sadness', 'anger', 'loneliness', 'boredom', 'strongcraving'];
-
-function MoodTimeline({ entries, tagMap, days = 14 }) {
-  const now = Date.now();
-  const dayStarts = Array.from({ length: days }, (_, i) => {
-    const d = new Date(now - (days - 1 - i) * 86400000);
-    d.setHours(0, 0, 0, 0);
-    return d.getTime();
-  });
-  // counts[tagId][dayIndex]
-  const counts = {};
-  EMOTION_TAGS.forEach(t => { counts[t] = new Array(days).fill(0); });
-  let maxCount = 1;
-  entries.forEach(e => {
-    const di = dayStarts.findIndex((s, i) => e.timestamp >= s && (i === days - 1 || e.timestamp < dayStarts[i + 1]));
-    if (di === -1) return;
-    e.tags?.forEach(t => {
-      if (counts[t] !== undefined) {
-        counts[t][di]++;
-        if (counts[t][di] > maxCount) maxCount = counts[t][di];
-      }
-    });
-  });
-  const activeRows = EMOTION_TAGS.filter(t => tagMap[t] && counts[t].some(c => c > 0));
-  if (activeRows.length === 0) return null;
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '76px 1fr', rowGap: 7, alignItems: 'center' }}>
-      {activeRows.map(tid => {
-        const tg = tagMap[tid];
-        return (
-          <Fragment key={tid}>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 6 }}>
-              {tg.emoji} {tg.label}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${days}, 1fr)`, gap: 3 }}>
-              {counts[tid].map((c, i) => (
-                <div key={i} title={c > 0 ? `${c}×` : ''} style={{
-                  aspectRatio: '1', borderRadius: 4,
-                  background: c > 0 ? tg.color : 'var(--surface2)',
-                  opacity: c > 0 ? 0.35 + 0.65 * (c / maxCount) : 1,
-                  border: c > 0 ? 'none' : '1px solid var(--border)',
-                }}/>
-              ))}
-            </div>
-          </Fragment>
-        );
-      })}
-    </div>
-  );
-}
 
 // ── Thermometer Grid (average intensity per trait × daypart, 14 days) ─────────
 function ThermometerGrid({ moodChecks, traitIds, tagMap, dayparts, t }) {
@@ -408,7 +359,6 @@ export default function App() {
   const [moodChecks,    setMoodChecks]    = useState([]);
   const [thermoDaypart, setThermoDaypart] = useState(() => suggestDaypart());
   const [thermoLevel, setThermoLevel] = useState(null);
-  const [showProgressDetail, setShowProgressDetail] = useState(false);
   const [fBehavior, setFBehavior] = useState('all');
   const [fTag,      setFTag]      = useState('all');
   const [confirmAction, setConfirmAction] = useState(null);
@@ -695,7 +645,7 @@ export default function App() {
   }
   // Unified quick-check save: tags → a lightweight `entries` doc (same shape the old
   // check-in card wrote), a touched water level → a `moodChecks` doc. Either, both,
-  // or neither can fire from one Save tap — MoodTimeline/ThermometerGrid read the same
+  // or neither can fire from one Save tap — the journal and Insights read the same
   // collections as before, so nothing downstream needs to change. The swim scene shows
   // one combined water level, but it's broadcast to every active emotion tag's rating
   // on save so the Stats grid keeps its per-emotion detail exactly as before.
@@ -971,30 +921,19 @@ export default function App() {
   const onboardingModalRef = useModalA11y(showOnboarding, () => {});
 
   // ── Stats ─────────────────────────────────────────────────────────────────
+  // Replacement texts are saved in whatever language was active, so match titles across all of them.
+  const techniqueOf = text => COPING_TECHNIQUES.find(tc => Object.values(STRINGS).some(s => s.copingTechniques[tc.id]?.title === text))?.id || null;
   const stats = (() => {
     const es = entries;
     const total = es.length;
-    const totalCost = es.reduce((s, e) => s + (behaviors.find(b => b.id === e.behaviorId)?.cost || 0), 0);
     const replaced  = es.filter(e => e.tags?.includes('replaced')).length;
     const savedCost = es.filter(e => e.tags?.includes('replaced')).reduce((s, e) => s + (behaviors.find(b => b.id === e.behaviorId)?.cost || 0), 0);
-    const now = Date.now();
-    const last7 = es.filter(e => e.timestamp > now - 7 * 86400000).length;
-    const prev7 = es.filter(e => e.timestamp > now - 14 * 86400000 && e.timestamp <= now - 7 * 86400000).length;
-    const tagCounts = {};
-    es.forEach(e => e.tags?.forEach(tagId => { tagCounts[tagId] = (tagCounts[tagId] || 0) + 1; }));
-    const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const byBehavior = behaviors.map(b => ({ ...b, count: es.filter(e => e.behaviorId === b.id).length }));
-    // Regulation rate: share of recent entries where a replacement behavior was used instead of the tracked one.
-    const replacedLast7 = es.filter(e => e.timestamp > now - 7 * 86400000 && e.tags?.includes('replaced')).length;
-    const replacedPrev7 = es.filter(e => e.timestamp > now - 14 * 86400000 && e.timestamp <= now - 7 * 86400000 && e.tags?.includes('replaced')).length;
-    const regRateLast7 = last7 ? replacedLast7 / last7 : null;
-    const regRatePrev7 = prev7 ? replacedPrev7 / prev7 : null;
-    const regTrend = (regRateLast7 ?? 0) - (regRatePrev7 ?? 0);
-    // Techniques used: counts entries whose replacement text exactly matches a coping-toolkit title.
+    const triggers = triggerCounts(es, { days: Infinity }).filter(([id]) => TAG_MAP[id]).slice(0, 5);
     const techCounts = {};
     es.forEach(e => {
-      const match = COPING_TECHNIQUES.find(tc => t.copingTechniques[tc.id]?.title === e.replacement);
-      if (match) techCounts[match.id] = (techCounts[match.id] || 0) + 1;
+      const id = e.replacement && techniqueOf(e.replacement);
+      if (id) techCounts[id] = (techCounts[id] || 0) + 1;
     });
     const topTechniques = Object.entries(techCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
     // Day streak (opt-in, see .streak stat tile): auto-hidden below when too many recent days were missed.
@@ -1007,10 +946,7 @@ export default function App() {
       const day = new Date(); day.setDate(day.getDate() - i);
       if (!entryDays.has(day.toISOString().slice(0, 10))) missedLast14++;
     }
-    return {
-      total, totalCost, replaced, savedCost, last7, prev7, trend: last7 - prev7, topTags, byBehavior,
-      regRateLast7, regTrend, topTechniques, streak, missedLast14,
-    };
+    return { total, replaced, savedCost, byBehavior, triggers, topTechniques, streak, missedLast14 };
   })();
 
   const filtered = entries.filter(e => {
@@ -1133,88 +1069,76 @@ export default function App() {
     );
   };
 
+  const INSIGHT_ICONS = { wins: '🏄', calmer: '🌤️', hardestDaypart: '🕰️', topTrigger: '🔎', bestTechnique: '💡' };
+  const insightText = i => {
+    if (i.id === 'wins') return t.insight.wins(i.count, i.more);
+    if (i.id === 'calmer') return t.insight.calmer;
+    if (i.id === 'hardestDaypart') return t.insight.hardestDaypart[i.daypart];
+    if (i.id === 'topTrigger') return TAG_MAP[i.tagId] && t.insight.topTrigger(TAG_MAP[i.tagId].label, i.count);
+    if (i.id === 'bestTechnique') return t.copingTechniques[i.techniqueId] && t.insight.bestTechnique(t.copingTechniques[i.techniqueId].title, i.count);
+    return null;
+  };
+
   const renderDashboard = () => {
     const s = stats;
+    if (s.total === 0 && moodChecks.length === 0) return <div className="empty"><div className="empty-icon">🌊</div><p>{t.statsEmpty}</p></div>;
+    const insights = buildInsights({ entries, moodChecks, techniqueOf }).map(i => ({ ...i, text: insightText(i) })).filter(i => i.text);
     const bMax = Math.max(...s.byBehavior.map(x => x.count), 1);
+    const bar = (key, label, count, max, color) => (
+      <div key={key} className="bar-row">
+        <div className="bar-label" title={label}>{label}</div>
+        <div className="bar-track"><div className="bar-fill" style={{ width: `${(count / max) * 100}%`, background: color }}/></div>
+        <div className="bar-count">{count}</div>
+      </div>
+    );
     return (
       <>
-        <div className="card">
-          <div className="card-title">{t.activity14}</div>
-          <WaveSparkline entries={entries}/>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-dim)' }}>{t.d14ago}</span>
-            <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-dim)' }}>{t.today}</span>
-          </div>
+        <div className="card insight-card">
+          <div className="card-title">{t.insightsTitle}</div>
+          {insights.length === 0
+            ? <p className="onb-body" style={{ margin: 0 }}>{t.insightsEmpty}</p>
+            : insights.map(i => <div key={i.id} className="insight-row"><span className="insight-icon">{INSIGHT_ICONS[i.id]}</span><span>{i.text}</span></div>)}
         </div>
-        {entries.some(e => e.tags?.some(tg => EMOTION_TAGS.includes(tg)) && e.timestamp > Date.now() - 14 * 86400000) && (
-          <div className="card">
-            <div className="card-title">{t.moodTimeline}</div>
-            <MoodTimeline entries={entries} tagMap={TAG_MAP}/>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
-              <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-dim)' }}>{t.d14ago}</span>
-              <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-dim)' }}>{t.today}</span>
-            </div>
-          </div>
-        )}
+        <div className="stat-grid">
+          <div className="stat"><div className="stat-val success">{s.replaced}</div><div className="stat-label">{t.winsLabel}</div></div>
+          <div className="stat"><div className="stat-val">{s.total}</div><div className="stat-label">{t.momentsLogged}</div></div>
+          {s.savedCost > 0 && <div className="stat"><div className="stat-val success">{formatMoney(s.savedCost, locale, currency)}</div><div className="stat-label">{t.savedLabel}</div></div>}
+          {userProfile?.streakEnabled && s.missedLast14 < 5 && <div className="stat"><div className="stat-val">{s.streak}</div><div className="stat-label">{t.currentStreak}</div></div>}
+        </div>
         {moodChecks.length > 0 && (
           <div className="card">
             <div className="card-title">{t.thermometerChartTitle}</div>
             <ThermometerGrid moodChecks={moodChecks} traitIds={EMOTION_TAGS} tagMap={TAG_MAP} dayparts={DAYPARTS} t={t}/>
           </div>
         )}
-        <div className="stat-grid">
-          <div className="stat"><div className="stat-val">{s.total}</div><div className="stat-label">{t.totalEntries}</div></div>
-          <div className="stat"><div className={`stat-val ${s.trend < 0 ? 'success' : s.trend > 0 ? 'danger' : ''}`}>{s.last7}{s.trend < 0 ? ' ↓' : s.trend > 0 ? ' ↑' : ''}</div><div className="stat-label">{t.thisWeek}</div></div>
-          <div className="stat"><div className="stat-val warm">{formatMoney(s.totalCost, locale, currency)}</div><div className="stat-label">{t.estCost}</div></div>
-          {userProfile?.streakEnabled && s.missedLast14 < 5 && (
-            <div className="stat"><div className="stat-val">{s.streak}</div><div className="stat-label">{t.currentStreak}</div></div>
-          )}
-        </div>
         {s.total > 0 && (
           <div className="card">
-            <div className="card-title">{t.progress}</div>
-            <div className={`stat-val ${s.regTrend > 0 ? 'success' : s.regTrend < 0 ? 'danger' : ''}`} style={{ fontSize: '2.4rem' }}>
-              {Math.round((s.replaced / s.total) * 100)}%{s.last7 > 0 && (s.regTrend > 0 ? ' ↑' : s.regTrend < 0 ? ' ↓' : '')}
+            <div className="card-title">{t.activity14}</div>
+            <WaveSparkline entries={entries}/>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+              <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-dim)' }}>{t.d14ago}</span>
+              <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-dim)' }}>{t.today}</span>
             </div>
-            <div className="stat-label">{t.replaced}</div>
-            {(s.savedCost > 0 || s.topTechniques.length > 0) && (
-              <>
-                <button className="btn btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={() => setShowProgressDetail(p => !p)}>
-                  {showProgressDetail ? t.hideDetail : t.viewDetail}
-                </button>
-                {showProgressDetail && (
-                  <div style={{ marginTop: 14 }}>
-                    {s.savedCost > 0 && (
-                      <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                        <div className="savings-amount">{formatMoney(s.savedCost, locale, currency)}</div>
-                        <div className="savings-label">{t.savedBy(s.replaced)}</div>
-                      </div>
-                    )}
-                    {s.topTechniques.length > 0 && (
-                      <>
-                        <div className="card-title">{t.techniquesUsed}</div>
-                        {s.topTechniques.map(([tcId, cnt]) => <div key={tcId} className="bar-row"><div className="bar-label">{t.copingTechniques[tcId]?.title}</div><div className="bar-track"><div className="bar-fill" style={{ width: `${(cnt / s.topTechniques[0][1]) * 100}%` }}/></div><div className="bar-count">{cnt}</div></div>)}
-                      </>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
           </div>
         )}
-        {s.byBehavior.length > 0 && (
+        {s.topTechniques.length > 0 && (
           <div className="card">
-            <div className="card-title">{t.byBehavior}</div>
-            {s.byBehavior.map(b => <div key={b.id} className="bar-row"><div className="bar-label" title={b.label}>{b.label}</div><div className="bar-track"><div className="bar-fill" style={{ width: `${(b.count / bMax) * 100}%` }}/></div><div className="bar-count">{b.count}</div></div>)}
+            <div className="card-title">{t.techniquesUsed}</div>
+            {s.topTechniques.map(([id, cnt]) => bar(id, t.copingTechniques[id]?.title, cnt, s.topTechniques[0][1], 'var(--success)'))}
           </div>
         )}
-        {s.topTags.length > 0 && (
+        {s.triggers.length > 0 && (
           <div className="card">
             <div className="card-title">{t.topTriggers}</div>
-            {s.topTags.map(([tid, cnt]) => { const tg = TAG_MAP[tid]; if (!tg) return null; return <div key={tid} className="bar-row"><div className="bar-label">{tg.emoji} {tg.label}</div><div className="bar-track"><div className="bar-fill" style={{ width: `${(cnt / s.topTags[0][1]) * 100}%`, background: tg.color }}/></div><div className="bar-count">{cnt}</div></div>; })}
+            {s.triggers.map(([id, cnt]) => bar(id, `${TAG_MAP[id].emoji} ${TAG_MAP[id].label}`, cnt, s.triggers[0][1], TAG_MAP[id].color))}
           </div>
         )}
-        {s.total === 0 && <div className="empty"><div className="empty-icon">📊</div><p>{t.statsEmpty}</p></div>}
+        {s.byBehavior.some(b => b.count > 0) && (
+          <div className="card">
+            <div className="card-title">{t.byBehavior}</div>
+            {s.byBehavior.map(b => bar(b.id, b.label, b.count, bMax))}
+          </div>
+        )}
       </>
     );
   };

@@ -118,6 +118,12 @@ export const CSS = `
   .settings-section-title:first-child { margin-top: 2px; }
   .checkin-card { background: var(--accent-light); }
 
+  /* Insights */
+  .insight-card { background: var(--surface); }
+  .insight-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; font-family: var(--font-display); font-size: 1.08rem; font-weight: 600; line-height: 1.35; color: var(--text); }
+  .insight-row + .insight-row { border-top: 1px solid var(--border); }
+  .insight-icon { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+
   /* Stats */
   .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
   .stat { background: var(--surface); border-radius: var(--radius); padding: 16px 14px; box-shadow: var(--shadow-sm); animation: fadeUp 0.45s cubic-bezier(.2,.8,.2,1) both; }

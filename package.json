@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "verify:autotag": "node scripts/check-autotag.mjs",
     "verify:thermometer": "node scripts/check-thermometer.mjs",
-    "verify:challenges": "node scripts/check-challenges.mjs"
+    "verify:challenges": "node scripts/check-challenges.mjs",
+    "verify:insights": "node scripts/check-insights.mjs"
   },
   "dependencies": {
     "firebase": "^10.12.0",

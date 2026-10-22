@@ -709,7 +709,7 @@ export default function App() {
           await batch.commit();
         }
       }
-      await setDoc(doc(db, 'users', user.uid), { onboarded: false, favoriteReplacements: [] }, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), { onboarded: false, favoriteReplacements: [], tagsSeeded: false }, { merge: true });
       setConfirmAction(null);
       setView('today');
       toast(t.appReset, 'success');

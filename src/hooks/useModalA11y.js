@@ -1,5 +1,19 @@
 import { useEffect, useRef } from 'react';
 
+// Reference-counted so overlapping modals (e.g. a confirm sheet closing in the same
+// tick another modal opens) can never leave body scroll stuck locked — each lock/unlock
+// is paired 1:1 with an effect run, regardless of how many modals are open at once or
+// in what order they close.
+let lockCount = 0;
+function lockScroll() {
+  lockCount++;
+  if (lockCount === 1) document.body.style.overflow = 'hidden';
+}
+function unlockScroll() {
+  lockCount = Math.max(0, lockCount - 1);
+  if (lockCount === 0) document.body.style.overflow = '';
+}
+
 export function useModalA11y(open, onCancel) {
   const modalRef = useRef(null);
   const triggerRef = useRef(null);
@@ -10,8 +24,7 @@ export function useModalA11y(open, onCancel) {
     if (!open) return undefined;
     triggerRef.current = document.activeElement;
     const modal = modalRef.current;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     const focusable = () => modal?.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') || [];
     const first = focusable()[0];
     first?.focus();
@@ -35,7 +48,7 @@ export function useModalA11y(open, onCancel) {
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = previousOverflow;
+      unlockScroll();
       triggerRef.current?.focus?.();
     };
   }, [open]);

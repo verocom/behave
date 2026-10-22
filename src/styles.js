@@ -124,6 +124,54 @@ export const CSS = `
   .insight-row + .insight-row { border-top: 1px solid var(--border); }
   .insight-icon { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
 
+  /* Cards that are also buttons */
+  button.card { display: flex; align-items: center; gap: 12px; width: 100%; border: none; text-align: left; font: inherit; color: var(--text); cursor: pointer; }
+  .icon-btn.on { color: var(--accent); border-color: var(--accent); }
+
+  /* Programs */
+  .program-hero { text-align: left; }
+  .program-emoji { font-size: 2.4rem; margin-bottom: 6px; }
+  .program-title { font-family: var(--font-display); font-size: 1.45rem; font-weight: 800; line-height: 1.2; margin-bottom: 6px; }
+  .program-progress { height: 8px; border-radius: 100px; background: var(--surface2); overflow: hidden; margin: 4px 0 8px; }
+  .program-progress-fill { height: 100%; background: var(--accent); border-radius: 100px; transition: width 0.5s cubic-bezier(.4,0,.2,1); }
+  .program-progress-label { font-size: 0.72rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+  .program-status { font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; color: var(--accent-deep); margin-top: 6px; }
+  .app.dark .program-status { color: var(--accent); }
+  .day-list { padding: 8px; }
+  .day-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: none; background: none; border-radius: var(--radius-sm); font: 700 0.9rem 'Manrope', sans-serif; color: var(--text); text-align: left; cursor: pointer; }
+  .day-row:disabled { cursor: default; color: var(--text-dim); }
+  .day-row.current { background: var(--accent-light); }
+  .day-num { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 800; background: var(--surface2); color: var(--text-muted); }
+  .day-row.done .day-num { background: var(--success); color: white; }
+  .day-row.current .day-num { background: var(--accent); color: white; }
+  .day-title { flex: 1; }
+  .day-go { color: var(--accent); font-weight: 800; }
+  .program-locked { align-items: flex-start; }
+  .program-emoji-sm { font-size: 1.6rem; line-height: 1; }
+  .program-locked-text { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .program-locked-title { font-family: var(--font-display); font-size: 1.02rem; font-weight: 700; }
+  .program-locked-desc { font-size: 0.8rem; color: var(--text-muted); font-weight: 500; line-height: 1.45; }
+  .program-gift { font-size: 0.76rem; color: var(--success); font-weight: 700; }
+  .premium-pill { flex-shrink: 0; font-size: 0.66rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; padding: 4px 9px; border-radius: 100px; background: var(--gold-light); color: var(--gold-deep); }
+  .day-skill { background: var(--accent-light); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 18px; }
+  .day-skill p { font-size: 0.86rem; font-weight: 600; line-height: 1.55; color: var(--text); }
+  .day-reflect-q { font-family: var(--font-display); font-size: 1.15rem; font-weight: 700; line-height: 1.3; margin-bottom: 12px; }
+  .entry-reflection { background: var(--gold-light); color: var(--gold-deep); }
+
+  /* Limitless+ */
+  .premium-hero { text-align: center; padding: 18px 8px 22px; }
+  .premium-wordmark { font-family: var(--font-display); font-size: 2.6rem; font-weight: 800; line-height: 1; color: var(--text); }
+  .premium-wordmark span { color: var(--gold); }
+  .premium-tagline { font-family: var(--font-display); font-size: 1.1rem; font-weight: 600; color: var(--text-muted); margin-top: 10px; line-height: 1.35; }
+  .check-row { display: flex; gap: 10px; font-size: 0.9rem; font-weight: 600; line-height: 1.45; padding: 7px 0; }
+  .check-mark { color: var(--accent); font-weight: 800; flex-shrink: 0; }
+  .price-row { display: flex; gap: 8px; margin: 16px 0 12px; }
+  .price-opt { flex: 1; text-align: center; padding: 12px 8px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); font-weight: 800; font-size: 0.9rem; }
+  .price-opt.best { border-color: var(--gold); background: var(--gold-light); }
+  .btn-soon { background: var(--surface2); color: var(--text-muted); border: 1.5px dashed var(--border); cursor: default; }
+  .mission-card { background: var(--warm-flat-bg); }
+  .premium-teaser { font-family: var(--font-display); font-size: 1rem; font-weight: 700; line-height: 1.35; background: var(--gold-flat-bg); }
+
   /* Stats */
   .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
   .stat { background: var(--surface); border-radius: var(--radius); padding: 16px 14px; box-shadow: var(--shadow-sm); animation: fadeUp 0.45s cubic-bezier(.2,.8,.2,1) both; }

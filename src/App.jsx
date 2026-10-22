@@ -8,7 +8,7 @@ import {
 } from 'firebase/auth';
 import {
   collection, addDoc, deleteDoc, doc, onSnapshot,
-  query, orderBy, serverTimestamp, setDoc, updateDoc, getDoc, getDocs, writeBatch,
+  query, orderBy, serverTimestamp, setDoc, updateDoc, getDoc, getDocs, writeBatch, deleteField,
 } from 'firebase/firestore';
 import { UI_LANGS, LOCALE, DEFAULT_VOICE, STRINGS, detectUILang } from './i18n';
 import { CSS } from './styles';
@@ -24,6 +24,8 @@ import CopingToolkitModal from './components/CopingToolkitModal';
 import { DAYPARTS, suggestDaypart, aggregateThermometer, waterLevelY } from './thermometer';
 import { CHALLENGES, relevantTagIds, sortBehaviorsByChallenges } from './challenges';
 import { buildInsights, triggerCounts } from './insights';
+import { PROGRAMS, dayStates, programSummary } from './programs';
+import { PROGRAM_CONTENT } from './programContent';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 // Seeded into a new user's own `tags` collection on first load, using these exact
@@ -114,6 +116,7 @@ const TrashIcon = () => <Ico size={17}><polyline points="3 6 5 6 21 6" stroke="c
 const PencilIcon = () => <Ico size={16} d="M12 20h9" d2="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>;
 const SunIcon   = () => <Ico cx={12} cy={12} r="5"><line x1="12" y1="1" x2="12" y2="3" stroke="currentColor"/><line x1="12" y1="21" x2="12" y2="23" stroke="currentColor"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor"/><line x1="1" y1="12" x2="3" y2="12" stroke="currentColor"/><line x1="21" y1="12" x2="23" y2="12" stroke="currentColor"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor"/></Ico>;
 const MoonIcon  = () => <Ico d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>;
+const CompassIcon = () => <Ico cx={12} cy={12} r="9"><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z" stroke="currentColor"/></Ico>;
 const LogoutIcon= () => <Ico d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" d2="M16 17l5-5-5-5"><line x1="21" y1="12" x2="9" y2="12" stroke="currentColor"/></Ico>;
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24">
@@ -357,6 +360,10 @@ export default function App() {
   const [expandedTechnique, setExpandedTechnique]  = useState(null);
   const [showCopingToolkit, setShowCopingToolkit]  = useState(false);
   const [moodChecks,    setMoodChecks]    = useState([]);
+  const [entitlement,   setEntitlement]   = useState(null);
+  const [openDay,       setOpenDay]       = useState(null);
+  const [dayReflection, setDayReflection] = useState('');
+  const [savingDay,     setSavingDay]     = useState(false);
   const [thermoDaypart, setThermoDaypart] = useState(() => suggestDaypart());
   const [thermoLevel, setThermoLevel] = useState(null);
   const [fBehavior, setFBehavior] = useState('all');
@@ -399,7 +406,10 @@ export default function App() {
     const unsubT = onSnapshot(tRef, snap => { setTags(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setTagsLoaded(true); }, err => onListenerError('Tag', err));
     const unsubU = onSnapshot(uRef, snap => { setUserProfile(snap.exists() ? snap.data() : {}); setProfileLoaded(true); }, err => onListenerError('Profile', err));
     const unsubM = onSnapshot(mRef, snap => setMoodChecks(snap.docs.map(d => ({ id: d.id, ...d.data() }))), err => onListenerError('Mood check', err));
-    return () => { unsubB(); unsubE(); unsubT(); unsubU(); unsubM(); };
+    // Written only by trusted server code (see firestore.rules); a missing doc or a
+    // permission error just means "not premium", never an error to surface.
+    const unsubP = onSnapshot(doc(db, 'entitlements', user.uid), snap => setEntitlement(snap.exists() ? snap.data() : null), () => setEntitlement(null));
+    return () => { unsubB(); unsubE(); unsubT(); unsubU(); unsubM(); unsubP(); };
   }, [toast, uiLang, user?.uid]);
 
   // ── Seed default tags once, for accounts that skip onboarding without picking any ──
@@ -453,6 +463,9 @@ export default function App() {
   useEffect(() => { localStorage.setItem('behave_uilang', uiLang); document.documentElement.lang = uiLang; }, [uiLang]);
   useEffect(() => { localStorage.setItem('behave_voicelang', recLang); }, [recLang]);
   const TAG_MAP = Object.fromEntries(tags.map(tg => [tg.id, tg]));
+  const isPremium = entitlement?.premium === true && (!entitlement.expiresAt || entitlement.expiresAt > Date.now());
+  const programProgress = userProfile?.programProgress || {};
+  const programCopy = PROGRAM_CONTENT[uiLang];
 
   // ── Onboarding (first login: suggest behaviors & replacement tags) ─────────
   const showOnboarding = !!user && profileLoaded && !userProfile?.onboarded && behaviors.length === 0 && entries.length === 0;
@@ -692,7 +705,7 @@ export default function App() {
           await batch.commit();
         }
       }
-      await setDoc(doc(db, 'users', user.uid), { onboarded: false, favoriteReplacements: [], tagsSeeded: false, challenges: [], diagnosisNote: '' }, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), { onboarded: false, favoriteReplacements: [], tagsSeeded: false, challenges: [], diagnosisNote: '', programProgress: deleteField() }, { merge: true });
       setConfirmAction(null);
       setView('today');
       toast(t.appReset, 'success');
@@ -853,6 +866,31 @@ export default function App() {
       toast(t.toastError, 'error');
     }
   }
+  // ── Programs ────────────────────────────────────────────────────────────────
+  function openProgramDay(programId, index) { setDayReflection(''); setOpenDay({ programId, index }); }
+  async function completeProgramDay() {
+    if (!user || !openDay) return;
+    const { programId, index } = openDay;
+    const reflection = dayReflection.trim();
+    setSavingDay(true);
+    try {
+      const writes = [setDoc(doc(db, 'users', user.uid), { programProgress: { [programId]: { completed: { [index]: Date.now() } } } }, { merge: true })];
+      if (reflection) {
+        writes.push(addDoc(collection(db, 'users', user.uid, 'entries'), {
+          type: 'reflection', programId, programDay: index + 1, behaviorId: null, transcript: reflection,
+          tags: [], replacement: '', note: '', timestamp: Date.now(), createdAt: serverTimestamp(),
+        }));
+      }
+      await Promise.all(writes);
+      setOpenDay(null); setDayReflection('');
+      toast(t.dayFinished, 'success');
+    } catch (err) {
+      console.error('Program day save failed:', err);
+      toast(t.toastError, 'error');
+    } finally {
+      setSavingDay(false);
+    }
+  }
   async function toggleFavoriteReplacement(label) {
     if (!user) return;
     const current = userProfile?.favoriteReplacements || [];
@@ -919,6 +957,7 @@ export default function App() {
   const behaviorModalRef = useModalA11y(showNewB, () => setShowNewB(false));
   const tagModalRef = useModalA11y(showNewTag, () => setShowNewTag(false));
   const onboardingModalRef = useModalA11y(showOnboarding, () => {});
+  const dayModalRef = useModalA11y(!!openDay, () => setOpenDay(null));
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   // Replacement texts are saved in whatever language was active, so match titles across all of them.
@@ -1048,6 +1087,7 @@ export default function App() {
               return (
                 <div key={entry.id} className="entry">
                   {b && <div className="entry-behavior">{b.label}</div>}
+                  {entry.type === 'reflection' && <div className="entry-behavior entry-reflection">{t.programDayBadge(entry.programDay)}</div>}
                   <div className="entry-transcript">"{entry.transcript}"</div>
                   {entry.replacement && <div className="entry-replacement">✦ {entry.replacement}</div>}
                   <div className="tags" style={{ marginBottom: 10 }}>
@@ -1139,9 +1179,95 @@ export default function App() {
             {s.byBehavior.map(b => bar(b.id, b.label, b.count, bMax))}
           </div>
         )}
+        {!isPremium && <button className="card premium-teaser" onClick={() => setView('premium')}>✨ {t.insightsPremiumTeaser}</button>}
       </>
     );
   };
+
+  const renderPrograms = () => {
+    const basics = PROGRAMS.find(p => p.id === 'basics');
+    const states = dayStates(basics, programProgress.basics);
+    const sum = programSummary(basics, programProgress.basics);
+    const copy = programCopy.basics;
+    return (
+      <>
+        <div className="card program-hero">
+          <div className="program-emoji">{basics.emoji}</div>
+          <div className="program-title">{copy.title}</div>
+          <p className="onb-body">{copy.description}</p>
+          <div className="program-progress"><div className="program-progress-fill" style={{ width: `${(sum.done / sum.total) * 100}%` }}/></div>
+          {sum.finished ? <p className="program-status">{t.programDone}</p> : (
+            <>
+              <div className="program-progress-label">{t.dayOf(sum.nextIndex + 1, sum.total)}</div>
+              {sum.nextState === 'current'
+                ? <button className="btn btn-primary btn-full" onClick={() => openProgramDay('basics', sum.nextIndex)}>{t.startDay(sum.nextIndex + 1)}</button>
+                : <p className="program-status">{t.nextDayTomorrow}</p>}
+            </>
+          )}
+        </div>
+        <div className="card day-list">
+          {basics.days.map((_, i) => (
+            <button key={i} className={`day-row ${states[i]}`} disabled={states[i] === 'locked' || states[i] === 'tomorrow'} onClick={() => openProgramDay('basics', i)}>
+              <span className="day-num">{states[i] === 'done' ? '✓' : i + 1}</span>
+              <span className="day-title">{copy.days[i].title}</span>
+              {states[i] === 'current' && <span className="day-go" aria-hidden="true">→</span>}
+            </button>
+          ))}
+        </div>
+        <div className="settings-section-title">{t.moreProgramsTitle}</div>
+        {PROGRAMS.filter(p => p.premium).map(p => (
+          <button key={p.id} className="card program-locked" onClick={() => setView('premium')}>
+            <span className="program-emoji-sm">{p.emoji}</span>
+            <span className="program-locked-text">
+              <span className="program-locked-title">{programCopy[p.id].title}</span>
+              <span className="program-locked-desc">{programCopy[p.id].description}</span>
+              {programCopy[p.id].gift && <span className="program-gift">🎁 {programCopy[p.id].gift}</span>}
+            </span>
+            <span className="premium-pill">{t.comingSoon}</span>
+          </button>
+        ))}
+        <div className="card">
+          <button className="btn btn-ghost btn-full" onClick={() => setShowCopingToolkit(true)}>🧰 {t.allSkills}</button>
+          <p className="legal-links" style={{ marginTop: 12 }}>{t.copingCrisisNote}</p>
+        </div>
+      </>
+    );
+  };
+
+  const renderPremium = () => (
+    <>
+      <div className="premium-hero">
+        <div className="premium-wordmark">Limitless<span>+</span></div>
+        <p className="premium-tagline">{t.premiumTagline}</p>
+      </div>
+      {isPremium && <div className="card mission-card"><div className="insight-row" style={{ padding: 0 }}>{t.premiumActive}</div></div>}
+      <div className="card">
+        <div className="card-title">{t.premiumIncludesTitle}</div>
+        {t.premiumIncludes.map(x => <div key={x} className="check-row"><span className="check-mark">✦</span>{x}</div>)}
+        {!isPremium && (
+          <>
+            <div className="price-row">
+              <div className="price-opt">{t.pricePerMonth(formatMoney(6.99, locale, currency))}</div>
+              <div className="price-opt best">{t.pricePerYear(formatMoney(49, locale, currency))}</div>
+            </div>
+            <div className="btn btn-full btn-soon" aria-disabled="true">{t.premiumCta}</div>
+          </>
+        )}
+      </div>
+      <div className="card mission-card">
+        <div className="card-title">💙 {t.payItForwardTitle}</div>
+        <p className="onb-body" style={{ margin: 0 }}>{t.payItForward}</p>
+      </div>
+      <div className="card">
+        <div className="card-title">{t.clinicCodeTitle}</div>
+        <p className="onb-body" style={{ margin: 0 }}>{t.clinicCodeBody}</p>
+      </div>
+      <div className="card">
+        <div className="card-title">{t.freeForeverTitle}</div>
+        {t.freeForever.map(x => <div key={x} className="check-row"><span className="check-mark">✓</span>{x}</div>)}
+      </div>
+    </>
+  );
 
   const renderSettings = () => (
     <>
@@ -1202,6 +1328,12 @@ export default function App() {
 
       <div className="settings-section-title">{t.preferencesSection}</div>
       <div className="card">
+        <div className="card-title">{t.theme}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {['system', 'light', 'dark'].map(m => <button key={m} className={`lang-chip ${themeMode === m ? 'on' : ''}`} onClick={() => setThemeMode(m)}>{t.themeOptions[m]}</button>)}
+        </div>
+      </div>
+      <div className="card">
         <div className="card-title">{t.uiLanguage}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {UI_LANGS.map(l => <div key={l.code} className={`lang-chip ${uiLang === l.code ? 'on' : ''}`} onClick={() => setUiLang(l.code)}>{l.flag} {l.label}</div>)}
@@ -1227,12 +1359,8 @@ export default function App() {
         </div>
       </div>
 
-      <div className="settings-section-title">{t.resourcesSection}</div>
-      <div className="card">
-        <button className="btn btn-ghost btn-full" onClick={() => setShowCopingToolkit(true)}>🧰 {t.copingToolkit}</button>
-      </div>
-
       <div className="settings-section-title">{t.accountSection}</div>
+      <button className="card premium-teaser" onClick={() => setView('premium')}>✨ {isPremium ? t.premiumActive : t.discoverPremium}</button>
       <div className="card">
         <div className="card-title">{t.data}</div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -1288,8 +1416,14 @@ export default function App() {
             </div>
           )}
           <div className="header-actions">
-            <button className="icon-btn" onClick={() => { const i = UI_LANGS.findIndex(l => l.code === uiLang); setUiLang(UI_LANGS[(i + 1) % UI_LANGS.length].code); }} title={t.language} style={{ fontSize: '0.7rem', fontWeight: 800 }}>{uiLang.toUpperCase()}</button>
-            <button className="icon-btn" onClick={() => setThemeMode(dark ? 'light' : 'dark')} title={t.toggleTheme}>{dark ? <SunIcon/> : <MoonIcon/>}</button>
+            {user ? (
+              <button className={`icon-btn ${view === 'settings' || view === 'premium' ? 'on' : ''}`} onClick={() => setView('settings')} aria-label={t.manage} title={t.manage}><GearIcon/></button>
+            ) : (
+              <>
+                <button className="icon-btn" onClick={() => { const i = UI_LANGS.findIndex(l => l.code === uiLang); setUiLang(UI_LANGS[(i + 1) % UI_LANGS.length].code); }} title={t.language} style={{ fontSize: '0.7rem', fontWeight: 800 }}>{uiLang.toUpperCase()}</button>
+                <button className="icon-btn" onClick={() => setThemeMode(dark ? 'light' : 'dark')} title={t.toggleTheme}>{dark ? <SunIcon/> : <MoonIcon/>}</button>
+              </>
+            )}
           </div>
         </div>
 
@@ -1303,6 +1437,8 @@ export default function App() {
               {view === 'today'     && renderToday()}
               {view === 'journal'   && renderJournal()}
               {view === 'dashboard' && renderDashboard()}
+              {view === 'programs'  && renderPrograms()}
+              {view === 'premium'   && renderPremium()}
               {view === 'settings'  && renderSettings()}
             </div>
             <nav className="tabbar">
@@ -1313,11 +1449,45 @@ export default function App() {
                   {recording ? <StopIcon/> : <MicIcon/>}
                 </button>
               </div>
+              <button className={`tab ${view === 'programs' ? 'on' : ''}`} onClick={() => setView('programs')}><CompassIcon/>{t.programs}</button>
               <button className={`tab ${view === 'dashboard' ? 'on' : ''}`} onClick={() => setView('dashboard')}><ChartIcon/>{t.stats}</button>
-              <button className={`tab ${view === 'settings' ? 'on' : ''}`} onClick={() => setView('settings')}><GearIcon/>{t.manage}</button>
             </nav>
           </>
         )}
+
+        {/* Program day */}
+        {openDay && (() => {
+          const program = PROGRAMS.find(p => p.id === openDay.programId);
+          const day = programCopy[program.id].days[openDay.index];
+          const techId = program.days[openDay.index];
+          const done = programProgress[program.id]?.completed?.[openDay.index] != null;
+          return (
+            <div className="overlay" onClick={() => setOpenDay(null)}>
+              <div ref={dayModalRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="day-title" onClick={e => e.stopPropagation()}>
+                <div className="modal-handle"/>
+                <div className="onb-quiz-progress">{t.dayOf(openDay.index + 1, program.days.length)}</div>
+                <div id="day-title" className="modal-title">{day.title}</div>
+                <p className="onb-body">{day.intro}</p>
+                <div className="day-skill">
+                  <div className="card-title">{t.theSkill} · {t.copingTechniques[techId].title}</div>
+                  <p>{t.copingTechniques[techId].how}</p>
+                </div>
+                <div className="card-title">{t.practiceToday}</div>
+                <p className="onb-body">{day.practice}</p>
+                <div className="card-title">{t.reflection}</div>
+                <p className="day-reflect-q">{day.reflect}</p>
+                {done ? (
+                  <button className="btn btn-ghost btn-full" onClick={() => setOpenDay(null)}>{t.close}</button>
+                ) : (
+                  <>
+                    <textarea className="transcript-box" value={dayReflection} onChange={e => setDayReflection(e.target.value)} placeholder={t.reflectionPh}/>
+                    <button className="btn btn-primary btn-full" onClick={completeProgramDay} disabled={savingDay}>{t.finishDay(openDay.index + 1)}</button>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Entry modal */}
         {showEntry && (

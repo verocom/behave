@@ -5,5 +5,12 @@ service cloud.firestore {
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+    // Limitless+ access. Readable by its owner, never writable from the app — only trusted
+    // server code (payment webhooks, clinic code redemption) using the Admin SDK can grant it,
+    // so nobody can make themselves premium by writing to their own profile.
+    match /entitlements/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
   }
 }

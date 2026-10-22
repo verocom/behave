@@ -10,7 +10,8 @@
     "verify:autotag": "node scripts/check-autotag.mjs",
     "verify:thermometer": "node scripts/check-thermometer.mjs",
     "verify:challenges": "node scripts/check-challenges.mjs",
-    "verify:insights": "node scripts/check-insights.mjs"
+    "verify:insights": "node scripts/check-insights.mjs",
+    "verify:programs": "node scripts/check-programs.mjs"
   },
   "dependencies": {
     "firebase": "^10.12.0",

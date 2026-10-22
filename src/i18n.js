@@ -13,9 +13,9 @@ export const DEFAULT_VOICE = { en: 'en-CA', fr: 'fr-CA', es: 'es-ES' };
 
 export const STRINGS = {
   en: {
-    tagline: 'behavior journal',
     greeting: 'Hello',
-    heroTagline: 'Track. Understand. Change.',
+    authPitch: 'Stay afloat when emotions rise.',
+    authPoints: [['🌊', 'A 10-second check-in, any time'], ['🧭', 'Guided DBT skills, one day at a time'], ['🔒', 'Private: no ads, never sold']],
     heroSub: 'Your private journal for observing harmful patterns and building better ones.',
     featVoice: '🎙️ Voice journaling',
     featInsights: '📊 Pattern insights',
@@ -54,7 +54,8 @@ export const STRINGS = {
     addDetails: 'Add details (voice, note)',
     // Journal
     all: 'All', allTags: 'All tags',
-    noEntries: 'No entries yet.', tapToRecord: 'Tap the green button to record your first note.',
+    quickCheckinLabel: 'Quick check-in', edit: 'Edit', dayLevels: l => `Water levels this day: ${l}`,
+    noEntries: 'No entries yet.', tapToRecord: 'Tap the microphone to record your first note, or log a moment from Today.',
     checkinSaved: 'Logged! 🌱',
     checkinNoBehavior: 'No behavior linked',
     // Stats
@@ -128,7 +129,7 @@ export const STRINGS = {
       evening: 'Evening', night: 'Night', replaced: 'Replaced ✓', strongcraving: 'Strong craving',
     },
     onboarding: {
-      step1Title: 'Welcome to Limitless 🌱', step1Body: "A private space to notice your patterns and gently build better ones. Let's set up your journal — takes under a minute.",
+      step1Title: 'Welcome to Limitless', step1Body: "A private space to notice your patterns and gently build better ones. Let's set up your journal — takes under a minute.",
       step2Title: 'What feels familiar right now?', step2Body: "Pick what speaks to you — it helps us suggest what's most useful for you. Nothing is required, and you can change it anytime in Manage.",
       helpMeButton: 'Not sure? Answer a few quick questions →',
       quizProgress: 'Question {n} of {total}', quizYes: "Yes, that's me", quizNo: 'Not really',
@@ -159,6 +160,7 @@ export const STRINGS = {
     logMoment: 'Log this moment', techniqueNow: 'A skill for right now',
     todaySummary: n => `${n} moment${n !== 1 ? 's' : ''} logged today`, streakDays: n => `${n} day${n !== 1 ? 's' : ''} in a row 🌊`,
     programs: 'Programs', yourProgram: 'Your program', allSkills: 'All coping skills',
+    programLength: n => `${n} days`,
     dayOf: (n, total) => `Day ${n} of ${total}`, startDay: n => `Start day ${n}`, finishDay: n => `Finish day ${n}`,
     nextDayTomorrow: 'Your next day opens tomorrow 🌙', programDone: 'Program complete 🎉 Your consistency is paying off.',
     theSkill: 'The skill', practiceToday: 'Try today', reflection: 'Reflection', reflectionPh: 'A few words, if you like…',
@@ -228,9 +230,9 @@ export const STRINGS = {
   },
 
   fr: {
-    tagline: 'journal de comportements',
     greeting: 'Bonjour',
-    heroTagline: 'Observer. Comprendre. Changer.',
+    authPitch: 'Rester à flot quand les émotions montent.',
+    authPoints: [['🌊', 'Un check-in en 10 secondes, à tout moment'], ['🧭', 'Des habiletés DBT guidées, un jour à la fois'], ['🔒', 'Privé : sans pub, jamais revendu']],
     heroSub: 'Ton journal privé pour observer tes patterns nuisibles et bâtir de meilleures habitudes.',
     featVoice: '🎙️ Journal vocal',
     featInsights: '📊 Analyse de patterns',
@@ -266,7 +268,8 @@ export const STRINGS = {
     voiceLanguageHint: 'Pour la reconnaissance vocale seulement — distinct de la langue de l’app ci-dessus.',
     addDetails: 'Ajouter des détails (voix, note)',
     all: 'Tous', allTags: 'Tous les tags',
-    noEntries: 'Aucune entrée pour l\u2019instant.', tapToRecord: 'Appuie sur le bouton vert pour enregistrer ta première note.',
+    quickCheckinLabel: 'Check-in rapide', edit: 'Modifier', dayLevels: l => `Niveaux d’eau ce jour-là : ${l}`,
+    noEntries: 'Aucune entrée pour l\u2019instant.', tapToRecord: 'Appuie sur le micro pour enregistrer ta première note, ou note un moment depuis Aujourd’hui.',
     checkinSaved: 'Enregistré! 🌱',
     checkinNoBehavior: 'Aucun comportement lié',
     activity14: 'Activité · 14 jours', d14ago: '–14 j', today: 'Aujourd\u2019hui',
@@ -334,7 +337,7 @@ export const STRINGS = {
       evening: 'Soir', night: 'Nuit', replaced: 'Remplacé ✓', strongcraving: 'Craving fort',
     },
     onboarding: {
-      step1Title: 'Bienvenue sur Limitless 🌱', step1Body: "Un espace privé pour observer tes patterns et en bâtir de meilleurs, en douceur. Configurons ton journal — moins d'une minute.",
+      step1Title: 'Bienvenue sur Limitless', step1Body: "Un espace privé pour observer tes patterns et en bâtir de meilleurs, en douceur. Configurons ton journal — moins d'une minute.",
       step2Title: 'Qu’est-ce qui te ressemble en ce moment?', step2Body: 'Coche ce qui te parle — ça nous aide à te proposer ce qui t’est le plus utile. Rien n’est obligatoire, et tu pourras changer d’avis dans Gérer.',
       helpMeButton: 'Pas sûr·e? Réponds à quelques questions →',
       quizProgress: 'Question {n} sur {total}', quizYes: 'Oui, ça me ressemble', quizNo: 'Pas vraiment',
@@ -363,6 +366,7 @@ export const STRINGS = {
     logMoment: 'Noter ce moment', techniqueNow: 'Une habileté pour maintenant',
     todaySummary: n => `${n} moment${n > 1 ? 's' : ''} noté${n > 1 ? 's' : ''} aujourd’hui`, streakDays: n => `${n} jour${n > 1 ? 's' : ''} de suite 🌊`,
     programs: 'Parcours', yourProgram: 'Ton parcours', allSkills: 'Toutes les habiletés',
+    programLength: n => `${n} jours`,
     dayOf: (n, total) => `Jour ${n} sur ${total}`, startDay: n => `Commencer le jour ${n}`, finishDay: n => `Terminer le jour ${n}`,
     nextDayTomorrow: 'Ton prochain jour s’ouvre demain 🌙', programDone: 'Parcours terminé 🎉 Ta constance porte ses fruits.',
     theSkill: 'L’habileté', practiceToday: 'À pratiquer aujourd’hui', reflection: 'Réflexion', reflectionPh: 'Quelques mots, si tu veux…',
@@ -432,9 +436,9 @@ export const STRINGS = {
   },
 
   es: {
-    tagline: 'diario de comportamientos',
     greeting: 'Hola',
-    heroTagline: 'Observar. Comprender. Cambiar.',
+    authPitch: 'Mantente a flote cuando suben las emociones.',
+    authPoints: [['🌊', 'Un check-in de 10 segundos, cuando quieras'], ['🧭', 'Habilidades DBT guiadas, un día a la vez'], ['🔒', 'Privado: sin anuncios, nunca vendido']],
     heroSub: 'Tu diario privado para observar patrones dañinos y construir mejores hábitos.',
     featVoice: '🎙️ Diario de voz',
     featInsights: '📊 Análisis de patrones',
@@ -470,7 +474,8 @@ export const STRINGS = {
     voiceLanguageHint: 'Solo para el reconocimiento de voz — distinto del idioma de la app arriba.',
     addDetails: 'Añadir detalles (voz, nota)',
     all: 'Todos', allTags: 'Todas las etiquetas',
-    noEntries: 'Aún no hay entradas.', tapToRecord: 'Toca el botón verde para grabar tu primera nota.',
+    quickCheckinLabel: 'Check-in rápido', edit: 'Editar', dayLevels: l => `Niveles de agua ese día: ${l}`,
+    noEntries: 'Aún no hay entradas.', tapToRecord: 'Toca el micrófono para grabar tu primera nota, o registra un momento desde Hoy.',
     checkinSaved: '¡Registrado! 🌱',
     checkinNoBehavior: 'Sin comportamiento vinculado',
     activity14: 'Actividad · 14 días', d14ago: '–14 d', today: 'Hoy',
@@ -538,7 +543,7 @@ export const STRINGS = {
       evening: 'Noche', night: 'Madrugada', replaced: 'Reemplazado ✓', strongcraving: 'Antojo fuerte',
     },
     onboarding: {
-      step1Title: 'Bienvenido a Limitless 🌱', step1Body: 'Un espacio privado para observar tus patrones y construir mejores, con calma. Configuremos tu diario — menos de un minuto.',
+      step1Title: 'Bienvenido a Limitless', step1Body: 'Un espacio privado para observar tus patrones y construir mejores, con calma. Configuremos tu diario — menos de un minuto.',
       step2Title: '¿Qué te resuena ahora mismo?', step2Body: 'Elige lo que te represente — nos ayuda a sugerirte lo que más te sirve. Nada es obligatorio y puedes cambiarlo cuando quieras en Gestionar.',
       helpMeButton: '¿No estás seguro/a? Responde unas preguntas rápidas →',
       quizProgress: 'Pregunta {n} de {total}', quizYes: 'Sí, me pasa', quizNo: 'No realmente',
@@ -567,6 +572,7 @@ export const STRINGS = {
     logMoment: 'Registrar este momento', techniqueNow: 'Una habilidad para ahora',
     todaySummary: n => `${n} momento${n !== 1 ? 's' : ''} registrado${n !== 1 ? 's' : ''} hoy`, streakDays: n => `${n} día${n !== 1 ? 's' : ''} seguido${n !== 1 ? 's' : ''} 🌊`,
     programs: 'Programas', yourProgram: 'Tu programa', allSkills: 'Todas las habilidades',
+    programLength: n => `${n} días`,
     dayOf: (n, total) => `Día ${n} de ${total}`, startDay: n => `Empezar el día ${n}`, finishDay: n => `Terminar el día ${n}`,
     nextDayTomorrow: 'Tu próximo día se abre mañana 🌙', programDone: 'Programa terminado 🎉 Tu constancia da frutos.',
     theSkill: 'La habilidad', practiceToday: 'Para practicar hoy', reflection: 'Reflexión', reflectionPh: 'Unas palabras, si quieres…',

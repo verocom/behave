@@ -37,9 +37,9 @@ const EN = {
         reflect: 'After this week, which skill do you want to keep with you?' },
     ],
   },
-  storms: { title: 'Emotional storms · 14 days', description: 'Understand intense emotions, name them, and bring the water down faster.' },
-  relationships: { title: 'Relationships without shipwrecks · 10 days', description: 'Ask for what you need, say no and keep the bond, with the DEAR MAN and GIVE skills.' },
-  afterTherapy: { title: 'Holding course after therapy · 30 days', description: 'For people finishing DBT: a daily touchpoint to keep your skills alive.', gift: 'Free for DBT graduates through their clinic.' },
+  storms: { title: 'Emotional storms', description: 'Understand intense emotions, name them, and bring the water down faster.' },
+  relationships: { title: 'Relationships without shipwrecks', description: 'Ask for what you need, say no and keep the bond, with the DEAR MAN and GIVE skills.' },
+  afterTherapy: { title: 'Holding course after therapy', description: 'For people finishing DBT: a daily touchpoint to keep your skills alive.', gift: 'Free for DBT graduates through their clinic.' },
 };
 
 const FR = {
@@ -77,9 +77,9 @@ const FR = {
         reflect: 'Après cette semaine, quelle habileté as-tu envie de garder avec toi ?' },
     ],
   },
-  storms: { title: 'Tempêtes émotionnelles · 14 jours', description: 'Comprendre tes émotions intenses, les nommer et faire redescendre l’eau plus vite.' },
-  relationships: { title: 'Relations sans naufrage · 10 jours', description: 'Demander ce dont tu as besoin, dire non et garder le lien, avec les habiletés DEAR MAN et GIVE.' },
-  afterTherapy: { title: 'Garder le cap après la thérapie · 30 jours', description: 'Pour les personnes qui terminent leur DBT : un rendez-vous quotidien pour garder tes acquis vivants.', gift: 'Offert aux diplômé·es DBT par l’entremise de leur clinique.' },
+  storms: { title: 'Tempêtes émotionnelles', description: 'Comprendre tes émotions intenses, les nommer et faire redescendre l’eau plus vite.' },
+  relationships: { title: 'Relations sans naufrage', description: 'Demander ce dont tu as besoin, dire non et garder le lien, avec les habiletés DEAR MAN et GIVE.' },
+  afterTherapy: { title: 'Garder le cap après la thérapie', description: 'Pour les personnes qui terminent leur DBT : un rendez-vous quotidien pour garder tes acquis vivants.', gift: 'Offert aux diplômé·es DBT par l’entremise de leur clinique.' },
 };
 
 const ES = {
@@ -117,9 +117,9 @@ const ES = {
         reflect: 'Después de esta semana, ¿qué habilidad quieres llevar contigo?' },
     ],
   },
-  storms: { title: 'Tormentas emocionales · 14 días', description: 'Entender tus emociones intensas, nombrarlas y bajar el agua más rápido.' },
-  relationships: { title: 'Relaciones sin naufragios · 10 días', description: 'Pedir lo que necesitas, decir que no y cuidar el vínculo, con las habilidades DEAR MAN y GIVE.' },
-  afterTherapy: { title: 'Mantener el rumbo después de la terapia · 30 días', description: 'Para quienes terminan su DBT: una cita diaria para mantener vivos tus logros.', gift: 'Gratis para quienes terminaron la DBT, a través de su clínica.' },
+  storms: { title: 'Tormentas emocionales', description: 'Entender tus emociones intensas, nombrarlas y bajar el agua más rápido.' },
+  relationships: { title: 'Relaciones sin naufragios', description: 'Pedir lo que necesitas, decir que no y cuidar el vínculo, con las habilidades DEAR MAN y GIVE.' },
+  afterTherapy: { title: 'Mantener el rumbo después de la terapia', description: 'Para quienes terminan su DBT: una cita diaria para mantener vivos tus logros.', gift: 'Gratis para quienes terminaron la DBT, a través de su clínica.' },
 };
 
 export const PROGRAM_CONTENT = { en: EN, fr: FR, es: ES };

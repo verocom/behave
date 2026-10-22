@@ -78,8 +78,13 @@ const LANGS = [
 ];
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
-function formatDate(ts, locale) {
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(ts));
+function formatTime(ts, locale) {
+  return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(new Date(ts));
+}
+// Local calendar day (YYYY-MM-DD) — toISOString() would file late-evening entries under tomorrow.
+function localDayKey(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 function formatMoney(n, locale, currency = 'CAD') {
   return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(n || 0);
@@ -101,7 +106,7 @@ async function apiPost(path, body = {}) {
 function groupByDay(entries) {
   const map = {};
   entries.forEach(e => {
-    const day = new Date(e.timestamp).toISOString().split('T')[0];
+    const day = localDayKey(e.timestamp);
     if (!map[day]) map[day] = [];
     map[day].push(e);
   });
@@ -180,18 +185,25 @@ function WaveSparkline({ entries, days = 14 }) {
 // No face, no distress posture at any value — only the water line communicates intensity.
 // With `onChange`, tapping or dragging in the scene sets the level; it's aria-hidden because
 // a native range input next to it stays the accessible control.
+// One tileable wave, centered on y=0, repeated so the group can slide left forever.
+function wavePath(amp, period, width, depth) {
+  let d = `M0,0`;
+  for (let x = 0; x < width; x += period) {
+    d += ` q${period / 4},${-amp} ${period / 2},0 t${period / 2},0`;
+  }
+  return `${d} L${width},${depth} L0,${depth} Z`;
+}
+
+// The signature illustration: the sky darkens, clouds and rain roll in and the
+// water rises over the swimmer as the level goes up. Dragging anywhere sets the level.
 function SwimScene({ value, onChange, height = 150 }) {
   const svgRef = useRef(null);
   const dragging = useRef(false);
-  const W = 300, H = 180, sandY = 160;
+  const W = 300, H = 180;
+  const level = value ?? 0;
+  const storm = level / 10;
   const waterY = waterLevelY(value);
-  const bumps = 5, amp = 3, step = W / bumps;
-  let wave = `M0,${waterY}`;
-  for (let i = 0; i < bumps; i++) {
-    const cy = i % 2 === 0 ? waterY - amp : waterY + amp;
-    wave += ` Q${step * i + step / 2},${cy} ${step * (i + 1)},${waterY}`;
-  }
-  const waterPath = `${wave} L${W},${sandY} L0,${sandY} Z`;
+  const amp = 2.5 + level * 0.55;
   const levelAt = e => {
     const svg = svgRef.current;
     const pt = svg.createSVGPoint();
@@ -204,13 +216,68 @@ function SwimScene({ value, onChange, height = 150 }) {
     onPointerUp: () => { dragging.current = false; },
     onPointerCancel: () => { dragging.current = false; },
   } : {};
+  // The free arm drifts on calm water and reaches up once the head goes under.
+  const reach = level >= 7;
   return (
-    <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" aria-hidden="true" {...handlers}
-      style={{ width: '100%', height, display: 'block', touchAction: onChange ? 'none' : undefined, cursor: onChange ? 'ns-resize' : undefined }}>
-      <rect x="0" y={sandY} width={W} height={H - sandY} fill="var(--gold-flat-bg)"/>
-      <ellipse cx="150" cy="88" rx="30" ry="17" fill="var(--text-muted)"/>
-      <circle cx="150" cy="58" r="14" fill="var(--text-muted)"/>
-      <path d={waterPath} fill="var(--water)" opacity={value == null ? 0.35 : 0.6} style={{ transition: 'opacity 0.3s' }}/>
+    <svg ref={svgRef} className={`swim-scene${value == null ? ' unset' : ''}`} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice" aria-hidden="true" {...handlers}
+      style={{ width: '100%', height, touchAction: onChange ? 'none' : undefined, cursor: onChange ? 'ns-resize' : undefined }}>
+      <defs>
+        <clipPath id="swim-clip"><rect width={W} height={H} rx="22"/></clipPath>
+        <linearGradient id="sky-calm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--sky-top)"/><stop offset="1" stopColor="var(--sky-bottom)"/></linearGradient>
+        <linearGradient id="sky-storm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--storm-top)"/><stop offset="1" stopColor="var(--storm-bottom)"/></linearGradient>
+        <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--sea-top)"/><stop offset="1" stopColor="var(--sea-deep)"/></linearGradient>
+        <radialGradient id="sun-glow"><stop offset="0.45" stopColor="var(--gold)" stopOpacity="0.55"/><stop offset="1" stopColor="var(--gold)" stopOpacity="0"/></radialGradient>
+      </defs>
+      <g clipPath="url(#swim-clip)">
+        <rect width={W} height={H} fill="url(#sky-calm)"/>
+        <rect width={W} height={H} fill="url(#sky-storm)" style={{ opacity: storm, transition: 'opacity 0.5s' }}/>
+        <g style={{ opacity: 1 - storm * 0.9, transform: `translateY(${storm * 22}px)`, transition: 'opacity 0.5s, transform 0.5s' }}>
+          <circle cx="242" cy="40" r="34" fill="url(#sun-glow)"/>
+          <circle cx="242" cy="40" r="15" fill="var(--gold)"/>
+        </g>
+        <g className="swim-clouds" style={{ opacity: Math.min(1, 0.25 + storm), transition: 'opacity 0.5s' }}>
+          <g fill="var(--cloud)" style={{ transform: `translateX(${-30 + storm * 40}px)`, transition: 'transform 0.6s' }}>
+            <ellipse cx="70" cy="34" rx="30" ry="11"/><ellipse cx="88" cy="27" rx="18" ry="12"/>
+            {level >= 4 && <><ellipse cx="196" cy="24" rx="34" ry="12"/><ellipse cx="214" cy="17" rx="20" ry="12"/></>}
+          </g>
+        </g>
+        {level >= 8 && (
+          <g className="swim-rain" stroke="var(--rain)" strokeWidth="1.6" strokeLinecap="round">
+            {Array.from({ length: 14 }, (_, i) => <line key={i} x1={12 + i * 21} y1={(i * 37) % 60} x2={8 + i * 21} y2={(i * 37) % 60 + 9} style={{ animationDelay: `${(i % 5) * -0.17}s` }}/>)}
+          </g>
+        )}
+        {/* back swell */}
+        <g style={{ transform: `translateY(${waterY - 6}px)`, transition: 'transform 0.45s cubic-bezier(.3,1.3,.5,1)' }}>
+          <path className="swim-wave slow" d={wavePath(amp * 0.7, 75, W * 2, 220)} fill="var(--sea-far)"/>
+        </g>
+        {/* swimmer */}
+        <g className="swimmer">
+          <path d={reach ? 'M162,82 Q178,58 186,26' : 'M162,84 Q186,80 206,92'} stroke="var(--swimmer)" strokeWidth="9" strokeLinecap="round" fill="none"/>
+          <path d="M138,84 Q116,82 96,93" stroke="var(--swimmer)" strokeWidth="9" strokeLinecap="round" fill="none"/>
+          <ellipse cx="150" cy="104" rx="21" ry="30" fill="var(--swimmer)"/>
+          <path d="M129,98 Q150,90 171,98 L170,118 Q150,126 130,118 Z" fill="var(--swimmer-suit)"/>
+          <circle cx="150" cy="60" r="15" fill="var(--swimmer)"/>
+          <path d="M135,58 a15,15 0 0 1 30,0 Z" fill="var(--swimmer-cap)"/>
+          {level < 7 && <path d={level >= 5 ? 'M145,66 q5,-2 10,0' : 'M144,64 q6,5 12,0'} stroke="var(--swimmer-ink)" strokeWidth="1.8" strokeLinecap="round" fill="none"/>}
+        </g>
+        {/* front water */}
+        <g style={{ transform: `translateY(${waterY}px)`, transition: 'transform 0.45s cubic-bezier(.3,1.3,.5,1)' }}>
+          <path className="swim-wave" d={wavePath(amp, 60, W * 2, 220)} fill="url(#sea)" opacity="0.88"/>
+          <path className="swim-wave fast" d={wavePath(amp * 0.4, 40, W * 2, 3)} fill="var(--foam)" opacity="0.7"/>
+        </g>
+        {level >= 7 && (
+          <g className="swim-bubbles" fill="var(--foam)">
+            <circle cx="140" cy="70" r="2.5"/><circle cx="156" cy="62" r="3.5" style={{ animationDelay: '-0.6s' }}/><circle cx="148" cy="54" r="2" style={{ animationDelay: '-1.1s' }}/>
+          </g>
+        )}
+        <path d={`M0,${H} L0,${H - 12} Q75,${H - 22} 150,${H - 14} T${W},${H - 16} L${W},${H} Z`} fill="var(--sand)"/>
+        {onChange && (
+          <g className="swim-handle" style={{ transform: `translate(${W - 26}px, ${waterY}px)`, transition: 'transform 0.45s cubic-bezier(.3,1.3,.5,1)' }}>
+            <circle r="13" fill="var(--surface)" stroke="var(--water)" strokeWidth="2.5"/>
+            <path d="M-4,-3 L0,-7 L4,-3 M-4,3 L0,7 L4,3" stroke="var(--water)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          </g>
+        )}
+      </g>
     </svg>
   );
 }
@@ -261,6 +328,15 @@ function AuthScreen({ t, uiLang, onLegal }) {
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
+  // The water gently rises and settles behind the wordmark: the whole idea of the app in one loop.
+  const [demoLevel, setDemoLevel] = useState(3);
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return undefined;
+    const steps = [3, 5, 7, 5, 3, 2];
+    let i = 0;
+    const id = setInterval(() => { i = (i + 1) % steps.length; setDemoLevel(steps[i]); }, 1800);
+    return () => clearInterval(id);
+  }, []);
 
   const AUTH_ERR_KEYS = {
     'auth/wrong-password': 'authWrongPw', 'auth/invalid-credential': 'authInvalidCred',
@@ -300,9 +376,12 @@ function AuthScreen({ t, uiLang, onLegal }) {
 
   return (
     <div className="auth-screen">
-      <div className="auth-orb"/>
+      <div className="auth-scene"><SwimScene value={demoLevel} height={190}/></div>
       <div className="auth-wordmark"><span className="limit">Limit</span><span className="less">less</span></div>
-      <div className="auth-tagline">{t.heroTagline}</div>
+      <div className="auth-tagline">{t.authPitch}</div>
+      <ul className="auth-points">
+        {t.authPoints.map(([icon, text]) => <li key={text}><span aria-hidden="true">{icon}</span>{text}</li>)}
+      </ul>
 
       <div className="auth-card">
         <button className="btn btn-google btn-full" onClick={handleGoogle} disabled={loading} style={{ marginBottom: 4 }}>
@@ -334,7 +413,7 @@ function AuthScreen({ t, uiLang, onLegal }) {
       </div>
 
       <div className="auth-toggle">
-        {mode === 'login' ? <>{t.noAccount}&nbsp;<span onClick={() => { setMode('signup'); setError(''); }}>{t.createOne}</span></> : <>{t.haveAccount}&nbsp;<span onClick={() => { setMode('login'); setError(''); }}>{t.signInLink}</span></>}
+        {mode === 'login' ? <>{t.noAccount}<button type="button" onClick={() => { setMode('signup'); setError(''); }}>{t.createOne}</button></> : <>{t.haveAccount}<button type="button" onClick={() => { setMode('login'); setError(''); }}>{t.signInLink}</button></>}
       </div>
       <div className="legal-links">
         {t.legalAgreement}. <button onClick={() => onLegal('terms')}>{t.terms}</button> · <button onClick={() => onLegal('privacy')}>{t.privacy}</button>
@@ -1133,7 +1212,7 @@ export default function App() {
             <span>{t.levelPhrases[band]}</span>
           </div>
           <input className="level-range" type="range" min="0" max="10" value={thermoLevel ?? 0} aria-label={t.waterQuestion}
-            style={{ accentColor: 'var(--water)' }} onChange={e => setThermoLevel(Number(e.target.value))}/>
+            onChange={e => setThermoLevel(Number(e.target.value))}/>
         </div>
 
         {(emotionTags.length > 0 || contextTags.length > 0 || behaviors.length > 0) && (
@@ -1187,7 +1266,7 @@ export default function App() {
                 const level = Math.round(values.reduce((a, v) => a + v, 0) / (values.length || 1));
                 return (
                   <div key={m.id} className="today-dot">
-                    <span style={{ opacity: 0.35 + (level / 10) * 0.65 }}>{level}</span>
+                    <span style={{ '--lvl': level }}>{level}</span>
                     <small>{new Date(m.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</small>
                   </div>
                 );
@@ -1214,44 +1293,77 @@ export default function App() {
   const renderJournal = () => {
     const grouped = groupByDay(filtered);
     const days = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
+    const unfiltered = fBehavior === 'all' && fTag === 'all';
+    const levelsByDay = groupByDay(moodChecks);
+    const tagChip = tid => {
+      const tg = TAG_MAP[tid];
+      return tg ? <span key={tid} className="tag readonly" style={{ background: tg.color + '20', borderColor: tg.color + '55', color: tg.color }}>{tg.emoji} {tg.label}</span> : null;
+    };
+    const actions = entry => (
+      <div className="entry-actions">
+        <button className="entry-delete" onClick={() => openEditEntry(entry)} aria-label={t.edit}><PencilIcon/></button>
+        <button className="entry-delete" onClick={() => requestConfirmation('entry', entry.id)} aria-label={t.deleteLabel}><TrashIcon/></button>
+      </div>
+    );
     return (
       <>
         <div className="filter-bar">
-          <div className={`chip ${fBehavior === 'all' ? 'on' : ''}`} onClick={() => setFBehavior('all')}>{t.all}</div>
-          {behaviors.map(b => <div key={b.id} className={`chip ${fBehavior === b.id ? 'on' : ''}`} onClick={() => setFBehavior(b.id)}>{b.label}</div>)}
+          <button className={`chip ${fBehavior === 'all' ? 'on' : ''}`} onClick={() => setFBehavior('all')}>{t.all}</button>
+          {behaviors.map(b => <button key={b.id} className={`chip ${fBehavior === b.id ? 'on' : ''}`} onClick={() => setFBehavior(b.id)}>{b.label}</button>)}
         </div>
         <div className="filter-bar">
-          <div className={`chip ${fTag === 'all' ? 'on' : ''}`} onClick={() => setFTag('all')}>{t.allTags}</div>
-          {tags.map(tg => <div key={tg.id} className={`chip ${fTag === tg.id ? 'on' : ''}`} onClick={() => setFTag(tg.id)}>{tg.emoji} {tg.label}</div>)}
+          <button className={`chip ${fTag === 'all' ? 'on' : ''}`} onClick={() => setFTag('all')}>{t.allTags}</button>
+          {tags.map(tg => <button key={tg.id} className={`chip ${fTag === tg.id ? 'on' : ''}`} onClick={() => setFTag(tg.id)}>{tg.emoji} {tg.label}</button>)}
         </div>
         {days.length === 0 ? (
           <div className="empty"><div className="empty-icon">🎙️</div><p>{t.noEntries}<br/>{t.tapToRecord}</p></div>
-        ) : days.map(day => (
-          <div key={day}>
-            <div className="day-label">{formatDay(day, locale)}</div>
-            {grouped[day].map(entry => {
-              const b = behaviors.find(b => b.id === entry.behaviorId);
-              return (
-                <div key={entry.id} className="entry">
-                  {b && <div className="entry-behavior">{b.label}</div>}
-                  {entry.type === 'reflection' && <div className="entry-behavior entry-reflection">{t.programDayBadge(entry.programDay)}</div>}
-                  <div className="entry-transcript">"{entry.transcript}"</div>
-                  {entry.replacement && <div className="entry-replacement">✦ {entry.replacement}</div>}
-                  <div className="tags" style={{ marginBottom: 10 }}>
-                    {entry.tags?.map(tid => { const tg = TAG_MAP[tid]; return tg ? <span key={tid} className="tag readonly" style={{ background: tg.color + '20', borderColor: tg.color + '55', color: tg.color }}>{tg.emoji} {tg.label}</span> : null; })}
+        ) : days.map(day => {
+          const levels = unfiltered ? (levelsByDay[day] || []).map(m => {
+            const v = Object.values(m.ratings || {});
+            return { id: m.id, ts: m.timestamp, level: Math.round(v.reduce((a, x) => a + x, 0) / (v.length || 1)) };
+          }).sort((a, b) => a.ts - b.ts) : [];
+          return (
+            <section key={day} className="journal-day">
+              <div className="day-head">
+                <div className="day-label">{(d => d.charAt(0).toUpperCase() + d.slice(1))(formatDay(day, locale))}</div>
+                {levels.length > 0 && (
+                  <div className="day-levels" aria-label={t.dayLevels(levels.map(l => l.level).join(', '))}>
+                    <span className="day-levels-icon" aria-hidden="true">🌊</span>
+                    {levels.map(l => <span key={l.id} className="day-level" style={{ '--lvl': l.level }} title={`${formatTime(l.ts, locale)} · ${l.level}/10`}>{l.level}</span>)}
                   </div>
-                  <div className="entry-footer">
-                    <span className="entry-date">{formatDate(entry.timestamp, locale)}</span>
-                    <div style={{ display: 'flex' }}>
-                      <button className="entry-delete" onClick={() => openEditEntry(entry)}><PencilIcon/></button>
-                      <button className="entry-delete" onClick={() => requestConfirmation('entry', entry.id)} aria-label={t.deleteLabel}><TrashIcon/></button>
+                )}
+              </div>
+              {grouped[day].map(entry => {
+                const b = behaviors.find(x => x.id === entry.behaviorId);
+                if (!entry.transcript?.trim()) {
+                  return (
+                    <div key={entry.id} className="entry entry-compact">
+                      <span className="entry-time">{formatTime(entry.timestamp, locale)}</span>
+                      <div className="entry-compact-body">
+                        <span className="entry-kind">{t.quickCheckinLabel}{b ? ` · ${b.label}` : ''}</span>
+                        <div className="tags">{entry.tags?.map(tagChip)}</div>
+                      </div>
+                      {actions(entry)}
                     </div>
+                  );
+                }
+                return (
+                  <div key={entry.id} className={`entry${entry.type === 'reflection' ? ' entry-is-reflection' : ''}`}>
+                    <div className="entry-head">
+                      {b && <span className="entry-behavior">{b.label}</span>}
+                      {entry.type === 'reflection' && <span className="entry-behavior entry-reflection">{t.programDayBadge(entry.programDay)}</span>}
+                      <span className="entry-time">{formatTime(entry.timestamp, locale)}</span>
+                      {actions(entry)}
+                    </div>
+                    <p className="entry-transcript">{entry.transcript}</p>
+                    {entry.replacement && <div className="entry-replacement">✦ {entry.replacement}</div>}
+                    {entry.tags?.length > 0 && <div className="tags entry-tags">{entry.tags.map(tagChip)}</div>}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        ))}
+                );
+              })}
+            </section>
+          );
+        })}
       </>
     );
   };
@@ -1289,8 +1401,8 @@ export default function App() {
         <div className="stat-grid">
           <div className="stat"><div className="stat-val success">{s.replaced}</div><div className="stat-label">{t.winsLabel}</div></div>
           <div className="stat"><div className="stat-val">{s.total}</div><div className="stat-label">{t.momentsLogged}</div></div>
-          {s.savedCost > 0 && <div className="stat"><div className="stat-val success">{formatMoney(s.savedCost, locale, currency)}</div><div className="stat-label">{t.savedLabel}</div></div>}
-          {userProfile?.streakEnabled && s.missedLast14 < 5 && <div className="stat"><div className="stat-val">{s.streak}</div><div className="stat-label">{t.currentStreak}</div></div>}
+          {userProfile?.streakEnabled && s.missedLast14 < 5 && <div className="stat stat-wide"><div className="stat-val">{s.streak}</div><div className="stat-label">{t.currentStreak}</div></div>}
+          {s.savedCost > 0 && <div className="stat stat-wide stat-win"><div className="stat-val success">{formatMoney(s.savedCost, locale, currency)}</div><div className="stat-label">{t.savedLabel}</div></div>}
         </div>
         {moodChecks.length > 0 && (
           <div className="card">
@@ -1366,11 +1478,14 @@ export default function App() {
           <button key={p.id} className="card program-locked" onClick={() => setView('premium')}>
             <span className="program-emoji-sm">{p.emoji}</span>
             <span className="program-locked-text">
+              <span className="program-meta">
+                <span className="program-length">{t.programLength(p.length)}</span>
+                <span className="premium-pill">{t.comingSoon}</span>
+              </span>
               <span className="program-locked-title">{programCopy[p.id].title}</span>
               <span className="program-locked-desc">{programCopy[p.id].description}</span>
               {programCopy[p.id].gift && <span className="program-gift">🎁 {programCopy[p.id].gift}</span>}
             </span>
-            <span className="premium-pill">{t.comingSoon}</span>
           </button>
         ))}
         <div className="card">
@@ -1610,10 +1725,7 @@ export default function App() {
               <div className="greeting-sub">{new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
             </div>
           ) : (
-            <div className="logo">
-              <div className="logo-name"><span className="limit">Limit</span><span className="less">less</span></div>
-              <div className="logo-sub">{t.tagline}</div>
-            </div>
+            <div/>
           )}
           <div className="header-actions">
             {user ? (
@@ -1833,7 +1945,7 @@ export default function App() {
             <div className="onb-screen-body" key={`${onbStep}-${onbChallengeStage}-${onbQuizIndex}`}>
               {onbStep === 1 && (
                 <>
-                  <div className="onb-emoji">🌱</div>
+                  <div className="onb-scene"><SwimScene value={2} height={180}/></div>
                   <div id="onboarding-modal-title" className="modal-title" style={{ textAlign: 'center' }}>{t.onboarding.step1Title}</div>
                   <p className="onb-body" style={{ textAlign: 'center' }}>{t.onboarding.step1Body}</p>
                   <div className="modal-actions">
